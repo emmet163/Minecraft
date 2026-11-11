@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Scripts/World/BlockType.cs" Link="BlockType.cs" />
+    <Compile Include="../Scripts/World/ChunkData.cs" Link="ChunkData.cs" />
+    <Compile Include="../Scripts/World/WorldGenerator.cs" Link="WorldGenerator.cs" />
+  </ItemGroup>
+</Project>

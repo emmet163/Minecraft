@@ -1,8 +1,8 @@
 namespace Stonewake.World;
 
-public enum BlockType
+public enum BlockType : byte
 {
-    Grass,
-    Dirt,
-    Stone
+    Air, Grass, Dirt, Stone, Sand, Snow, Mud, Water,
+    Wood, Leaves, Flower, Plant, Coal, Copper, Iron, Gold,
+    GrassSide, SnowSide // Materials only; never stored in chunk voxels.
 }

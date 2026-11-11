@@ -25,7 +25,7 @@ public partial class FirstPersonPlayer : CharacterBody3D
         ProcessMode = ProcessModeEnum.Pausable;
         FloorSnapLength = 0.3f;
         _capsule = new CapsuleShape3D { Radius = 0.34f, Height = StandingHeight };
-        _collider = new CollisionShape3D { Shape = _capsule, Position = new Vector3(0f, StandingHeight / 2f, 0f) };
+        _collider = new CollisionShape3D { Name = "Collider", Shape = _capsule, Position = new Vector3(0f, StandingHeight / 2f, 0f) };
         AddChild(_collider);
         _camera = new Camera3D { Current = true, Position = new Vector3(0f, 1.62f, 0f), Fov = 75f };
         AddChild(_camera);
@@ -34,12 +34,15 @@ public partial class FirstPersonPlayer : CharacterBody3D
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is InputEventMouseMotion motion && Input.MouseMode == Input.MouseModeEnum.Captured)
-        {
-            var scale = ControlSettings.MouseSensitivity * 0.01f;
-            RotateY(-motion.Relative.X * scale);
-            _pitch = Mathf.Clamp(_pitch - motion.Relative.Y * scale, Mathf.DegToRad(-89f), Mathf.DegToRad(89f));
-            _camera.Rotation = new Vector3(_pitch, 0f, 0f);
-        }
+            ApplyLook(motion.Relative);
+    }
+
+    public void ApplyLook(Vector2 relative)
+    {
+        var scale = ControlSettings.MouseSensitivity * 0.01f;
+        RotateY(-relative.X * scale);
+        _pitch = Mathf.Clamp(_pitch - relative.Y * scale, Mathf.DegToRad(-89f), Mathf.DegToRad(89f));
+        _camera.Rotation = new Vector3(_pitch, 0f, 0f);
     }
 
     public override void _PhysicsProcess(double delta)

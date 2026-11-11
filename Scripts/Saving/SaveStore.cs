@@ -22,4 +22,22 @@ public static class SaveStore
         file.SetValue("controls", "mouse_sensitivity", value);
         return file.Save(Path);
     }
+
+    public static (int Seed, int RenderDistance) LoadWorldSettings()
+    {
+        var file = new ConfigFile();
+        if (file.Load(Path) != Error.Ok) return (12345, 2);
+        return ((int)file.GetValue("world", "seed", 12345),
+                System.Math.Clamp((int)file.GetValue("world", "render_distance", 2), 2, 6));
+    }
+
+    public static Error SaveWorldSettings(int seed, int renderDistance)
+    {
+        var file = new ConfigFile();
+        file.Load(Path);
+        file.SetValue("meta", "format_version", 2);
+        file.SetValue("world", "seed", seed);
+        file.SetValue("world", "render_distance", System.Math.Clamp(renderDistance, 2, 6));
+        return file.Save(Path);
+    }
 }

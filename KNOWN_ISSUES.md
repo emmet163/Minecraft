@@ -1,7 +1,10 @@
-# Known issues and limits — Phase 1
+# Known issues and limits — Phase 2
 
-- **Build and runtime unverified:** The development environment has neither Godot .NET nor the .NET SDK available, so syntax, import, and gameplay behavior still require a real build and launch.
-- **Crouch clearance:** The collider expands immediately when crouch is released. Under a future low ceiling this could overlap geometry. The Phase 1 world has no overhead blocks.
-- **Finite world:** The 16 × 16 block test platform has no world boundary or respawn behavior. Walking off it causes the player to fall.
-- **Terrain cost:** The prototype uses one body and mesh per visible block. A later scalable world will need chunk meshes and merged collision.
-- **Audio:** No sound is authored or played in this phase; no audio feature was requested for Phase 1.
+- **Visual water only:** Oceans, rivers, and lakes render water blocks, but there is no buoyancy, swimming, or underwater movement. The player can fall through deep water.
+- **Crouch clearance:** Releasing crouch immediately expands the collider. An overhead cave ceiling may overlap it; a clearance query is still needed.
+- **Finite vertical range:** Chunks cover levels 0–95. Terrain is clamped below the top; deeper geology and vertical chunk streaming are outside this phase.
+- **Biome edges:** Terrain height is continuous across climate regions, but surface block types switch at biome thresholds and can form visible color edges.
+- **Meshing cost:** Hidden faces are culled, but exposed quads are not greedily merged. Distance 6 loaded its full 169 chunks in the headless probe; its graphical frame rate and native memory use remain unmeasured.
+- **Regeneration is destructive to position:** Applying a seed or render-distance change rebuilds loaded chunks and moves the player to a safe spawn. No terrain edits or player-position save exist yet.
+- **Manual input and long soak testing:** Headless tests exercised the movement code and Escape path. Actual mouse capture, full UI interaction, and long-duration native-memory behavior require an interactive play session.
+- **Audio:** No sounds are authored or played in this phase.

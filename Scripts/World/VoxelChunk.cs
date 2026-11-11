@@ -1,44 +1,41 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace Stonewake.World;
 
 public partial class VoxelChunk : Node3D
 {
-    public const int Size = 8;
-    private static readonly BoxMesh CubeMesh = new() { Size = Vector3.One };
-    private static readonly BoxShape3D CubeShape = new() { Size = Vector3.One };
+    public ChunkData Data { get; private set; } = null!;
 
-    public void Build(int chunkX, int chunkZ, StandardMaterial3D[] materials)
+    public void Build(ChunkData data, ChunkMeshData prepared, IReadOnlyDictionary<BlockType, StandardMaterial3D> materials)
     {
-        Name = $"Chunk_{chunkX}_{chunkZ}";
-        for (var localX = 0; localX < Size; localX++)
-        for (var localZ = 0; localZ < Size; localZ++)
-        {
-            var x = chunkX * Size + localX;
-            var z = chunkZ * Size + localZ;
-            AddBlock(x, 0, z, BlockType.Grass, materials);
+        Data = data;
+        Name = $"Chunk_{data.X}_{data.Z}";
+        Position = new Vector3(data.X * ChunkData.Size, 0, data.Z * ChunkData.Size);
 
-            // Reveal the soil and bedrock layers along the edge of the test world.
-            if (x == -Size || x == Size - 1 || z == -Size || z == Size - 1)
-            {
-                AddBlock(x, -1, z, BlockType.Dirt, materials);
-                AddBlock(x, -2, z, BlockType.Stone, materials);
-            }
+        var mesh = new ArrayMesh();
+        foreach (var pair in prepared.Surfaces)
+        {
+            var buffer = pair.Value;
+            if (buffer.Vertices.Count == 0) continue;
+            var arrays = new Godot.Collections.Array();
+            arrays.Resize((int)Mesh.ArrayType.Max);
+            arrays[(int)Mesh.ArrayType.Vertex] = buffer.Vertices.ToArray();
+            arrays[(int)Mesh.ArrayType.Normal] = buffer.Normals.ToArray();
+            arrays[(int)Mesh.ArrayType.TexUV] = buffer.Uvs.ToArray();
+            arrays[(int)Mesh.ArrayType.Index] = buffer.Indices.ToArray();
+            mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+            mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, materials[pair.Key]);
         }
-    }
+        AddChild(new MeshInstance3D { Mesh = mesh });
 
-    private void AddBlock(int x, int y, int z, BlockType type, StandardMaterial3D[] materials)
-    {
-        var body = new StaticBody3D { Position = new Vector3(x, y, z) };
-        body.SetMeta("block_type", type.ToString());
-        body.SetMeta("block_position", new Vector3I(x, y, z));
-        AddChild(body);
-        body.AddChild(new MeshInstance3D
+        if (prepared.Collision.Count > 0)
         {
-            Mesh = CubeMesh,
-            MaterialOverride = materials[(int)type],
-            CastShadow = GeometryInstance3D.ShadowCastingSetting.On
-        });
-        body.AddChild(new CollisionShape3D { Shape = CubeShape });
+            var shape = new ConcavePolygonShape3D { BackfaceCollision = true };
+            shape.SetFaces(prepared.Collision.ToArray());
+            var body = new StaticBody3D();
+            body.AddChild(new CollisionShape3D { Shape = shape });
+            AddChild(body);
+        }
     }
 }
