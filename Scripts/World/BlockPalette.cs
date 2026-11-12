@@ -26,6 +26,12 @@ public static class BlockPalette
             BlockType.Gold => new Color(0.83f, 0.64f, 0.20f),
             BlockType.GrassSide => new Color(0.39f, 0.29f, 0.18f),
             BlockType.SnowSide => new Color(0.44f, 0.47f, 0.49f),
+            BlockType.Gravel => new Color(0.49f, 0.48f, 0.45f),
+            BlockType.Glass => new Color(0.64f, 0.85f, 0.91f),
+            BlockType.Slab => new Color(0.55f, 0.55f, 0.54f),
+            BlockType.Stairs => new Color(0.48f, 0.34f, 0.21f),
+            BlockType.Door => new Color(0.52f, 0.32f, 0.17f),
+            BlockType.Fence => new Color(0.49f, 0.32f, 0.19f),
             _ => new Color(1f, 0f, 1f)
         };
 
@@ -50,10 +56,10 @@ public static class BlockPalette
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             Roughness = 1f
         };
-        if (type == BlockType.Water)
+        if (type is BlockType.Water or BlockType.Glass)
         {
             material.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-            material.AlbedoColor = new Color(1f, 1f, 1f, .78f);
+            material.AlbedoColor = new Color(1f, 1f, 1f, type == BlockType.Glass ? .48f : .78f);
         }
         return material;
     }

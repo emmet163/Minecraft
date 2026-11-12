@@ -1,31 +1,29 @@
-# Phase 2 test report
+# Phase 3 test report
 
 Date: 2026-11-11
 
-## Tools
+## Environment
 
-Godot 4.4.1 .NET and .NET SDK 8.0.428 were installed under ignored `.tools/` for this run. The tests used the Compatibility renderer on an Intel Arc 140V GPU. The workspace-local tools are not part of the commit.
+Godot 4.4.1 .NET and .NET SDK 8.0.428 were run from ignored `.tools/`. The graphical launch used Godot's Compatibility renderer on an Intel Arc 140V GPU. No downloaded toolchain files are included in the commit.
 
-## Executed results
+## Executed checks
 
 | Check | Result |
 | --- | --- |
-| Full `Stonewake.csproj` Debug build | **Passed:** 0 warnings, 0 errors |
-| Source and project-file review | **Passed:** all created/modified code, scenes, settings, and Godot UID files inspected; `git diff --check` clean |
-| Pure world logic tests | **Passed:** same-seed revisit, different-seed terrain, positive and negative chunk seams, adjacent height continuity, caves, ores, all 8 biome types |
-| Headless Godot runtime probe | **Passed:** walking, jump, gravity, floor collision, sprint, crouch camera and collider, direct camera rotation, block raycast, Escape pause/resume, pause freeze, chunk loading/unloading/revisit, collision mesh and face culling, seed/render-distance reset |
-| Main scene launch with graphics | **Passed:** exited 0 on the Compatibility renderer; 30 frames recorded and final frame inspected |
-| Repeated stream/unload cycles | **Passed:** loaded chunk count stayed within the configured retention bound; no fatal shutdown or native resource leak report on the final run |
-| Maximum render distance (6) | **Passed:** 169 loaded chunks, 0 pending after 240 physics frames; count stayed at its configured bound |
+| Full C# project build | Passed with 0 warnings and 0 errors |
+| Pure world logic suite | Passed: seed consistency, positive/negative chunk seams, eight biomes, caves, ores, tool-speed rules, block properties, serialized edits, edited border continuity |
+| Phase 1–2 headless regression probe | Passed: movement, jumping, gravity, sprint, crouch, camera rotation, raycast, pause, loading/unloading/revisit, maximum render distance |
+| Phase 3 headless interaction probe | Passed: hardness timer, mining, particle burst, drop spawn/pickup, slot keys and wheel, tool cycling, placement, occupied/player collision restrictions, slab/stair/door/fence geometry, slab physics ray collision, glass culling, sand/gravel gravity, boundary remesh, unload/revisit, disk reload |
+| Graphical main-scene launch | Passed: 30 rendered frames, final frame inspected; hotbar and world visible |
+| Source review | All new and modified code, scenes, tests, project settings, and generated Godot script UIDs inspected; `git diff --check` clean |
 
-The pure test generated four chunks, checked 24,576 voxel values on a revisit, and found 2,743 cave cells and 172 ore cells for test seed 741852. The final run completed in **27 ms** in Release. The headless probe's last background chunk generation and mesh preparation took **10 ms**. After two additional stream cycles and a forced collection, managed memory was **3,174,792 bytes** at the default distance of 2; at distance 6 it was **7,637,224 bytes** with 169 loaded chunks. These are single-run measurements on this machine, not frame-rate or native-memory benchmarks. The final 30-frame graphical capture reported about **1.68 ms CPU** and **4.77 ms GPU** per frame in movie mode; movie writing changes normal runtime timing.
+The final pure logic run completed in **90 ms**. The interaction probe's last saved edit and chunk rebuild took **14 ms** in a headless run, with about **2.87 MB** of managed memory after forced collection. The Phase 1–2 regression probe loaded 169 chunks with no pending jobs at exit; its last chunk took 9 ms, and managed memory was about 4.18 MB at default distance and 13.01 MB at maximum distance after forced collection. These are individual measurements, not long-run frame-time or native-memory benchmarks. The graphical capture reported about **1.46 ms CPU** and **3.57 ms GPU** per frame in movie mode; movie writing changes normal runtime timing.
 
-## Fixes found during testing
+## Bugs found and fixed
 
-- A simulated mouse event was not delivered by the headless display driver. Camera rotation is tested directly; real mouse capture still needs a human interactive check.
-- A sprint probe ran into nearby terrain; the probe now moves in a clear direction and verifies the resulting speed.
-- Immediate shutdown after seed regeneration produced Godot managed-resource finalizer errors. The per-frame ray query is now disposed, and the probe waits for chunk teardown before exit. The rerun exited cleanly.
-- Rendered-frame review found the initial spawn inside tree foliage. Spawn selection now prefers clear plains terrain, with forest as fallback, and tree density was reduced.
-- A compile error from a variable name collision in spawn selection was fixed, then the full build and regression tests were rerun.
+- The first selection-outline implementation used a `StandardMaterial3D` property that Godot 4.4.1 does not have. It was replaced with an `ImmediateMesh` line outline; the project was rebuilt.
+- Saving edits now completes before the visible chunk changes. On a save failure, the in-memory edit is rolled back and the action returns failure. A corrupt edit file is preserved and blocks further edits for that loaded world.
+- Edit rebuilds now reuse loaded voxel data instead of regenerating terrain. Background chunk results detect edit revisions and apply new edits before becoming visible.
+- The world process mode is pausable, so falling blocks and chunk streaming stop with the game.
 
-Godot still prints `Failed to read the root certificate store` in this restricted environment. The project build, runtime probe, and graphical run exited successfully despite that environment warning. A human play session, UI layout at multiple resolutions, long-duration native-memory profiling, and graphical frame rate at maximum render distance were not verified.
+An initial probe launch without the local `APPDATA` override could not create Godot's user data directory in this restricted environment and exited with a crash. Rerunning with `APPDATA` and `LOCALAPPDATA` pointed inside the workspace passed both probes. Godot also printed `Failed to read the root certificate store`; the successful runs exited normally despite that environment warning. A human play session was not performed: actual mouse-button delivery, audible sound quality, UI layout at other resolutions, and long-duration native-memory behavior remain unverified.

@@ -1,5 +1,6 @@
 using Godot;
 using Stonewake.Player;
+using Stonewake.World;
 
 namespace Stonewake.UI;
 
@@ -13,6 +14,11 @@ public partial class GameHud : CanvasLayer
     private HSlider _renderSlider = null!;
     private Label _renderValue = null!;
     private Label _settingsError = null!;
+    private readonly ColorRect[] _hotbarBacks = new ColorRect[9];
+    private readonly Label[] _hotbarLabels = new Label[9];
+    private Label _toolLabel = null!;
+    private Label _pickupLabel = null!;
+    private ProgressBar _mineBar = null!;
 
     public override void _Ready()
     {
@@ -34,6 +40,40 @@ public partial class GameHud : CanvasLayer
         root.AddChild(_targetLabel);
         _worldInfoLabel = new Label { Text = "", Position = new Vector2(18, 44) };
         root.AddChild(_worldInfoLabel);
+
+        _mineBar = new ProgressBar { MinValue = 0, MaxValue = 1, Value = 0, Visible = false, ShowPercentage = false };
+        _mineBar.AnchorLeft = .5f;
+        _mineBar.AnchorRight = .5f;
+        _mineBar.AnchorTop = .5f;
+        _mineBar.AnchorBottom = .5f;
+        _mineBar.OffsetLeft = -85; _mineBar.OffsetRight = 85;
+        _mineBar.OffsetTop = 30; _mineBar.OffsetBottom = 43;
+        root.AddChild(_mineBar);
+
+        var hotbar = new HBoxContainer();
+        hotbar.AnchorLeft = .5f; hotbar.AnchorRight = .5f;
+        hotbar.AnchorTop = 1; hotbar.AnchorBottom = 1;
+        hotbar.OffsetLeft = -440; hotbar.OffsetRight = 440;
+        hotbar.OffsetTop = -78; hotbar.OffsetBottom = -14;
+        hotbar.AddThemeConstantOverride("separation", 4);
+        root.AddChild(hotbar);
+        for (var i = 0; i < 9; i++)
+        {
+            var back = new ColorRect { CustomMinimumSize = new Vector2(94, 64), Color = new Color(.09f, .12f, .16f, .82f) };
+            hotbar.AddChild(back);
+            var label = new Label { Position = new Vector2(5, 5), Size = new Vector2(84, 54), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            back.AddChild(label);
+            _hotbarBacks[i] = back;
+            _hotbarLabels[i] = label;
+        }
+        _toolLabel = new Label { Text = "Tool: Hand  (Q to change)", HorizontalAlignment = HorizontalAlignment.Center };
+        _toolLabel.AnchorLeft = .5f; _toolLabel.AnchorRight = .5f;
+        _toolLabel.AnchorTop = 1; _toolLabel.AnchorBottom = 1;
+        _toolLabel.OffsetLeft = -180; _toolLabel.OffsetRight = 180;
+        _toolLabel.OffsetTop = -105; _toolLabel.OffsetBottom = -82;
+        root.AddChild(_toolLabel);
+        _pickupLabel = new Label { Text = "", Position = new Vector2(18, 70) };
+        root.AddChild(_pickupLabel);
 
         _pauseOverlay = new ColorRect { Color = new Color(0.05f, 0.07f, 0.1f, 0.82f), Visible = false };
         _pauseOverlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -90,7 +130,7 @@ public partial class GameHud : CanvasLayer
         stack.AddChild(apply);
         _settingsError = new Label { Text = "", HorizontalAlignment = HorizontalAlignment.Center };
         stack.AddChild(_settingsError);
-        stack.AddChild(new Label { Text = "WASD move  ·  Space jump  ·  Shift sprint\nCtrl crouch  ·  Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
+        stack.AddChild(new Label { Text = "WASD move · Space jump · Shift sprint\nCtrl crouch · Q tool · 1–9 slots · Wheel select\nLeft mine · Right place/use · Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
         var resume = new Button { Text = "Resume" };
         resume.Pressed += () => ((Stonewake.Game.Main)GetParent()).SetPaused(false);
         stack.AddChild(resume);
@@ -109,4 +149,21 @@ public partial class GameHud : CanvasLayer
         _renderValue.Text = distance.ToString();
     }
     public void ShowPause(bool paused) => _pauseOverlay.Visible = paused;
+    public void SetMiningProgress(float value)
+    {
+        _mineBar.Visible = value > 0;
+        _mineBar.Value = value;
+    }
+    public void ShowPickup(string text) => _pickupLabel.Text = text;
+    public void SetHotbar(HotbarInventory inventory)
+    {
+        for (var i = 0; i < 9; i++)
+        {
+            var type = inventory.Slot(i);
+            _hotbarLabels[i].Text = $"{i + 1}\n{type}  {inventory.Count(type)}";
+            _hotbarBacks[i].Color = i == inventory.Selected
+                ? new Color(.66f, .71f, .48f, .95f) : new Color(.09f, .12f, .16f, .82f);
+        }
+        _toolLabel.Text = $"Tool: {inventory.Tool}  (Q to change)";
+    }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using Stonewake.World;
 
 var timer = Stopwatch.StartNew();
@@ -46,7 +47,32 @@ for (var x = -3000; x <= 3000; x += 120)
     biomes.Add(generator.BiomeAt(x, z));
 foreach (Biome biome in Enum.GetValues<Biome>()) Check(biomes.Contains(biome), $"biome {biome} generated");
 
-Console.WriteLine($"World logic passed: 4 chunks, {ChunkData.Size * ChunkData.Size * ChunkData.Height} revisit voxels, {caves} cave cells, {ores} ore cells, {biomes.Count} biomes, {timer.ElapsedMilliseconds} ms.");
+Check(BlockRules.MiningSeconds(BlockType.Stone, ToolKind.Pickaxe) < BlockRules.MiningSeconds(BlockType.Stone, ToolKind.Hand), "pickaxe speeds stone");
+Check(BlockRules.MiningSeconds(BlockType.Sand, ToolKind.Shovel) < BlockRules.MiningSeconds(BlockType.Sand, ToolKind.Pickaxe), "shovel speeds sand");
+Check(BlockRules.Falls(BlockType.Sand) && BlockRules.Falls(BlockType.Gravel), "gravity blocks");
+Check(BlockRules.IsTransparent(BlockType.Glass) && BlockRules.IsShaped(BlockType.Stairs), "block properties");
+var edits = new WorldEdits();
+var boundaryLeft = new CellKey(15, 50, 0);
+var boundaryRight = new CellKey(16, 50, 0);
+edits.Record(boundaryLeft, BlockState.Empty);
+edits.Record(boundaryRight, new BlockState(BlockType.Stairs, 2));
+var path = Path.Combine(Path.GetTempPath(), $"stonewake-edits-{Guid.NewGuid():N}.json");
+try
+{
+    edits.Save(path);
+    var restored = WorldEdits.Load(path);
+    Check(restored.Count == 2, "edit save/load count");
+    var left = generator.Generate(0, 0);
+    var right = generator.Generate(1, 0);
+    WorldEdits.Apply(left, restored.SnapshotForChunk(0, 0));
+    WorldEdits.Apply(right, restored.SnapshotForChunk(1, 0));
+    Check(left.GetWorldState(15, 50, 0) == BlockState.Empty, "mined edit restored");
+    Check(left.GetWorldState(16, 50, 0) == right.GetWorldState(16, 50, 0), "edited border matches adjacent chunk");
+    Check(right.GetWorldState(16, 50, 0).Facing == 2, "shape orientation restored");
+}
+finally { if (File.Exists(path)) File.Delete(path); }
+
+Console.WriteLine($"World logic passed: seed/chunk seams, {biomes.Count} biomes, tool speeds, block states, persisted boundary edits, {timer.ElapsedMilliseconds} ms.");
 
 static void Check(bool condition, string message)
 {

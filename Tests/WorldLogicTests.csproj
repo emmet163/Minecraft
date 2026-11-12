@@ -7,6 +7,9 @@
   <ItemGroup>
     <Compile Include="../Scripts/World/BlockType.cs" Link="BlockType.cs" />
     <Compile Include="../Scripts/World/ChunkData.cs" Link="ChunkData.cs" />
+    <Compile Include="../Scripts/World/BlockState.cs" Link="BlockState.cs" />
+    <Compile Include="../Scripts/World/BlockRules.cs" Link="BlockRules.cs" />
+    <Compile Include="../Scripts/World/WorldEdits.cs" Link="WorldEdits.cs" />
     <Compile Include="../Scripts/World/WorldGenerator.cs" Link="WorldGenerator.cs" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
-# Stonewake — Phases 1–2
+# Stonewake — Phases 1–3
 
-Stonewake is an original, Minecraft-inspired voxel prototype made with Godot 4 C#. Phase 2 adds a deterministic, streaming voxel world to the Phase 1 controller, camera, targeting, and pause flow. It has no block editing, crafting, enemies, or survival loop yet.
+Stonewake is an original, Minecraft-inspired voxel prototype made with Godot 4 C#. Phase 3 adds mining, building, drops, a hotbar, shaped blocks, and saved world edits to the Phase 1 controller and Phase 2 streaming terrain. Crafting, enemies, and the survival loop are not implemented yet.
 
 ## Requirements
 
@@ -31,6 +31,10 @@ godot --path .
 | Sprint | Shift |
 | Crouch | Ctrl |
 | Pause / resume | Escape |
+| Mine / break | Hold left mouse button |
+| Place / use door | Right mouse button |
+| Select hotbar slot | 1–9 or mouse wheel |
+| Change mining tool | Q (hand, pickaxe, shovel) |
 
 The pause menu has mouse sensitivity, signed integer world seed, and render distance controls (2–6 chunks). Applying world settings regenerates the terrain and moves the player to a clear spawn. Settings persist in Godot's `user://stonewake.cfg`. The upper-left labels show the targeted block, current biome, seed, and loaded/pending chunk counts.
 
@@ -40,15 +44,22 @@ The world uses 16×16 horizontal chunks with 96 block levels. Seeded noise shape
 
 Water is currently visual terrain without swimming physics. See `KNOWN_ISSUES.md`.
 
+## Mining and building
+
+Look at a block within six meters to see its selection outline. Hold left click through the block's hardness time to break it; the selected tool affects mining speed. Broken blocks burst into particles and drop a small collectible item. Right click places the selected hotbar block against the targeted face. Doors occupy two cells and can be toggled with right click. Slabs, stairs, glass, and fences use distinct mesh and collision geometry. Unsupported placed sand and gravel fall in steps. Edits are saved per seed under Godot's `user://world_<seed>.json` and survive chunk streaming and game relaunch.
+
+The hotbar starts with 32 of each building block for Phase 3 testing. Collected blocks outside the nine assigned slots are counted internally but cannot yet be selected for placement.
+
 ## Tests
 
 ```powershell
 dotnet run --project Tests/WorldLogicTests.csproj -c Release
 dotnet build Stonewake.csproj -c Debug
 godot --headless --path . res://Tests/RuntimeProbe.tscn
+godot --headless --path . res://Tests/InteractionProbe.tscn
 ```
 
-The runtime probe runs the Phase 1 movement and pause checks alongside Phase 2 streaming checks. The automated run and rendered-frame inspection are recorded in `TEST_REPORT.md`.
+The runtime probes cover Phase 1 controls, Phase 2 streaming, and Phase 3 interaction and persistence. Executed results and rendered-frame inspection are recorded in `TEST_REPORT.md`.
 
 ## Project layout
 
@@ -58,6 +69,8 @@ The runtime probe runs the Phase 1 movement and pause checks alongside Phase 2 s
 - `Scripts/World/` — seeded terrain, biome logic, block data, mesh preparation, and chunk streaming
 - `Scripts/UI/` — crosshair, target label, pause menu
 - `Scripts/Saving/` — versioned control and world-setting persistence boundary
+- `Scripts/World/WorldEdits.cs` — per-seed, world-coordinate edit persistence
+- `Scripts/Player/HotbarInventory.cs` — nine building slots and mining tool choice
 - `Tests/` and `Scripts/Tests/` — deterministic logic and headless Godot regression checks
 
 The textures are generated from original colors and a deterministic pixel pattern at runtime. No proprietary game assets are included.
