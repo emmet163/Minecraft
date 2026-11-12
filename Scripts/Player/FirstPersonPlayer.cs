@@ -1,4 +1,5 @@
 using Godot;
+using System;
 
 namespace Stonewake.Player;
 
@@ -16,8 +17,18 @@ public partial class FirstPersonPlayer : CharacterBody3D
     private CollisionShape3D _collider = null!;
     private CapsuleShape3D _capsule = null!;
     private float _pitch;
+    private bool _airborne;
+    private float _peakY;
 
     public Camera3D Camera => _camera;
+    public bool Flying { get; private set; }
+    public event Action<float>? Landed;
+    public void SetFlight(bool enabled)
+    {
+        Flying = enabled;
+        _airborne = false;
+        Velocity = Vector3.Zero;
+    }
 
     public override void _Ready()
     {
@@ -47,6 +58,21 @@ public partial class FirstPersonPlayer : CharacterBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (Flying)
+        {
+            var flyInput = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+            var horizontal = (Transform.Basis * new Vector3(flyInput.X, 0, flyInput.Y)).Normalized();
+            var vertical = (Input.IsActionPressed("jump") ? 1 : 0) - (Input.IsActionPressed("crouch") ? 1 : 0);
+            var flySpeed = Input.IsActionPressed("sprint") ? 13f : 8f;
+            Velocity = new Vector3(horizontal.X, vertical, horizontal.Z).Normalized() * flySpeed;
+            MoveAndSlide();
+            return;
+        }
+        if (!IsOnFloor())
+        {
+            if (!_airborne) { _airborne = true; _peakY = GlobalPosition.Y; }
+            else _peakY = Mathf.Max(_peakY, GlobalPosition.Y);
+        }
         var velocity = Velocity;
         if (!IsOnFloor()) velocity.Y -= Gravity * (float)delta;
         else if (Input.IsActionJustPressed("jump")) velocity.Y = JumpVelocity;
@@ -65,5 +91,10 @@ public partial class FirstPersonPlayer : CharacterBody3D
         velocity.Z = direction.Z * speed;
         Velocity = velocity;
         MoveAndSlide();
+        if (IsOnFloor() && _airborne)
+        {
+            _airborne = false;
+            Landed?.Invoke(Mathf.Max(0, _peakY - GlobalPosition.Y));
+        }
     }
 }

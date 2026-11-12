@@ -2,6 +2,8 @@ using Godot;
 using Stonewake.Player;
 using Stonewake.Items;
 using Stonewake.World;
+using Stonewake.Survival;
+using System;
 
 namespace Stonewake.UI;
 
@@ -20,6 +22,18 @@ public partial class GameHud : CanvasLayer
     private Label _toolLabel = null!;
     private Label _pickupLabel = null!;
     private ProgressBar _mineBar = null!;
+    private ProgressBar _healthBar = null!;
+    private ProgressBar _hungerBar = null!;
+    private ProgressBar _experienceBar = null!;
+    private Label _healthText = null!;
+    private Label _hungerText = null!;
+    private Label _experienceText = null!;
+    private Label _cycleText = null!;
+    private Label _oxygenText = null!;
+    private Control _deathOverlay = null!;
+    private OptionButton _modePicker = null!;
+    public event Action<GameMode>? ModeRequested;
+    public event Action? RespawnRequested;
 
     public override void _Ready()
     {
@@ -77,6 +91,23 @@ public partial class GameHud : CanvasLayer
         _pickupLabel = new Label { Text = "", Position = new Vector2(18, 70) };
         root.AddChild(_pickupLabel);
 
+        _cycleText = new Label { Text = "Day 1", HorizontalAlignment = HorizontalAlignment.Right };
+        _cycleText.AnchorLeft = 1; _cycleText.AnchorRight = 1;
+        _cycleText.OffsetLeft = -320; _cycleText.OffsetRight = -18;
+        _cycleText.OffsetTop = 18; _cycleText.OffsetBottom = 48;
+        root.AddChild(_cycleText);
+        _oxygenText = new Label { HorizontalAlignment = HorizontalAlignment.Right, Visible = false };
+        _oxygenText.AnchorLeft = 1; _oxygenText.AnchorRight = 1;
+        _oxygenText.OffsetLeft = -320; _oxygenText.OffsetRight = -18;
+        _oxygenText.OffsetTop = 46; _oxygenText.OffsetBottom = 74;
+        root.AddChild(_oxygenText);
+        _healthBar = MakeBar(root, -430, -172, 250, new Color(.82f, .25f, .28f));
+        _hungerBar = MakeBar(root, 180, -172, 250, new Color(.87f, .62f, .22f));
+        _experienceBar = MakeBar(root, -145, -135, 290, new Color(.42f, .77f, .37f));
+        _healthText = MakeMeterLabel(root, -430, -195, 250);
+        _hungerText = MakeMeterLabel(root, 180, -195, 250);
+        _experienceText = MakeMeterLabel(root, -145, -158, 290);
+
         _pauseOverlay = new ColorRect { Color = new Color(0.05f, 0.07f, 0.1f, 0.82f), Visible = false };
         _pauseOverlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(_pauseOverlay);
@@ -84,9 +115,9 @@ public partial class GameHud : CanvasLayer
         var panel = new PanelContainer();
         panel.SetAnchorsPreset(Control.LayoutPreset.Center);
         panel.OffsetLeft = -190;
-        panel.OffsetTop = -280;
+        panel.OffsetTop = -320;
         panel.OffsetRight = 190;
-        panel.OffsetBottom = 280;
+        panel.OffsetBottom = 320;
         _pauseOverlay.AddChild(panel);
 
         var margin = new MarginContainer();
@@ -118,6 +149,12 @@ public partial class GameHud : CanvasLayer
         _renderValue = new Label { Text = "2", HorizontalAlignment = HorizontalAlignment.Center };
         stack.AddChild(_renderValue);
         _renderSlider.ValueChanged += value => _renderValue.Text = ((int)value).ToString();
+        stack.AddChild(new Label { Text = "Game mode" });
+        _modePicker = new OptionButton();
+        _modePicker.AddItem("Survival", (int)GameMode.Survival);
+        _modePicker.AddItem("Creative · flight and unlimited blocks", (int)GameMode.Creative);
+        _modePicker.ItemSelected += index => ModeRequested?.Invoke((GameMode)_modePicker.GetItemId((int)index));
+        stack.AddChild(_modePicker);
         var apply = new Button { Text = "Apply world settings" };
         apply.Pressed += () =>
         {
@@ -132,13 +169,52 @@ public partial class GameHud : CanvasLayer
         stack.AddChild(apply);
         _settingsError = new Label { Text = "", HorizontalAlignment = HorizontalAlignment.Center };
         stack.AddChild(_settingsError);
-        stack.AddChild(new Label { Text = "WASD move · Space jump · Shift sprint\nCtrl crouch · Q tool · 1–9 slots · Wheel select\nE inventory · Left mine · Right place/use · Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
+        stack.AddChild(new Label { Text = "WASD move · Space jump · Shift sprint\nCtrl crouch · Q tool · 1–9 slots · Wheel select\nE inventory · F eat/use · Left mine · Right place/use\nCreative: Space up · Ctrl down · Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
         var resume = new Button { Text = "Resume" };
         resume.Pressed += () => ((Stonewake.Game.Main)GetParent()).SetPaused(false);
         stack.AddChild(resume);
         var quit = new Button { Text = "Quit" };
         quit.Pressed += () => GetTree().Quit();
         stack.AddChild(quit);
+
+        _deathOverlay = new ColorRect { Color = new Color(.09f, .02f, .03f, .92f), Visible = false };
+        _deathOverlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(_deathOverlay);
+        var deathPanel = new VBoxContainer();
+        deathPanel.SetAnchorsPreset(Control.LayoutPreset.Center);
+        deathPanel.OffsetLeft = -180; deathPanel.OffsetRight = 180;
+        deathPanel.OffsetTop = -100; deathPanel.OffsetBottom = 100;
+        _deathOverlay.AddChild(deathPanel);
+        var title = new Label { Text = "YOU FELL", HorizontalAlignment = HorizontalAlignment.Center };
+        title.AddThemeFontSizeOverride("font_size", 38);
+        deathPanel.AddChild(title);
+        deathPanel.AddChild(new Label { Text = "Your items remain where you died.", HorizontalAlignment = HorizontalAlignment.Center });
+        var respawn = new Button { Text = "Respawn (R)" };
+        respawn.Pressed += () => RespawnRequested?.Invoke();
+        deathPanel.AddChild(respawn);
+    }
+
+    private static ProgressBar MakeBar(Control root, float left, float top, float width, Color color)
+    {
+        var bar = new ProgressBar { MinValue = 0, MaxValue = 20, ShowPercentage = false };
+        bar.AnchorLeft = .5f; bar.AnchorRight = .5f;
+        bar.AnchorTop = 1; bar.AnchorBottom = 1;
+        bar.OffsetLeft = left; bar.OffsetRight = left + width;
+        bar.OffsetTop = top; bar.OffsetBottom = top + 17;
+        var fill = new StyleBoxFlat { BgColor = color };
+        bar.AddThemeStyleboxOverride("fill", fill);
+        root.AddChild(bar);
+        return bar;
+    }
+    private static Label MakeMeterLabel(Control root, float left, float top, float width)
+    {
+        var label = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        label.AnchorLeft = .5f; label.AnchorRight = .5f;
+        label.AnchorTop = 1; label.AnchorBottom = 1;
+        label.OffsetLeft = left; label.OffsetRight = left + width;
+        label.OffsetTop = top; label.OffsetBottom = top + 22;
+        root.AddChild(label);
+        return label;
     }
 
     public void SetTarget(string text) => _targetLabel.Text = text;
@@ -151,6 +227,25 @@ public partial class GameHud : CanvasLayer
         _renderValue.Text = distance.ToString();
     }
     public void ShowPause(bool paused) => _pauseOverlay.Visible = paused;
+    public void ShowDeath(bool dead) => _deathOverlay.Visible = dead;
+    public bool DeathShown => _deathOverlay.Visible;
+    public string CurrentCycleText => _cycleText.Text;
+    public void SetMode(GameMode mode) => _modePicker.Select((int)mode);
+    public void SetSurvival(SurvivalState state, WorldCycle cycle, bool snowing)
+    {
+        _healthBar.Visible = _hungerBar.Visible = _experienceBar.Visible = state.Mode == GameMode.Survival;
+        _healthText.Visible = _hungerText.Visible = _experienceText.Visible = state.Mode == GameMode.Survival;
+        _healthBar.Value = state.Health; _hungerBar.Value = state.Hunger;
+        _experienceBar.MaxValue = 1; _experienceBar.Value = state.ExperienceFraction;
+        _healthText.Text = $"HEALTH  {state.Health:0}/{SurvivalState.MaxHealth:0}";
+        _hungerText.Text = $"HUNGER  {state.Hunger:0}/{SurvivalState.MaxHunger:0}";
+        _experienceText.Text = $"LEVEL {state.Level}  ·  XP {state.Experience}";
+        _oxygenText.Visible = state.Mode == GameMode.Survival && state.Oxygen < SurvivalState.MaxOxygen;
+        _oxygenText.Text = $"AIR  {state.Oxygen:0.0}/{SurvivalState.MaxOxygen:0}";
+        var weather = cycle.Weather == WeatherKind.Clear ? "Clear" : snowing ? "Snow" : cycle.Weather == WeatherKind.Storm ? "Thunderstorm" : "Rain";
+        _cycleText.Text = $"Day {cycle.Day}  ·  {cycle.Hour:00}:00  ·  {weather}";
+        if (state.Mode == GameMode.Creative) _toolLabel.Text = $"CREATIVE  ·  {state.CreativeBlock}  ·  Space/Ctrl fly";
+    }
     public void SetMiningProgress(float value)
     {
         _mineBar.Visible = value > 0;

@@ -4,6 +4,7 @@ using Godot;
 using Stonewake.Items;
 using Stonewake.Player;
 using Stonewake.World;
+using Stonewake.Survival;
 
 namespace Stonewake.UI;
 
@@ -26,6 +27,8 @@ public partial class InventoryPanel : CanvasLayer
     private ItemList _recipeList = null!;
     private Label _guide = null!;
     private Label _recipeHeader = null!;
+    private Label _creativeHeader = null!;
+    private OptionButton _creativePalette = null!;
     private RecipeDef[] _shownRecipes = Array.Empty<RecipeDef>();
     private ItemStack Cursor { get => _world.Cursor; set => _world.Cursor = value; }
     private CellKey _cell;
@@ -34,6 +37,7 @@ public partial class InventoryPanel : CanvasLayer
     private string _furnaceVisual = "";
     public bool IsOpen => _overlay.Visible;
     public event Action? Changed;
+    public event Action<RecipeDef>? Crafted;
     public event Action<ItemStack>? DropRequested;
 
     public void Setup(HotbarInventory player, WorldItems world) { _player = player; _world = world; }
@@ -77,6 +81,17 @@ public partial class InventoryPanel : CanvasLayer
         right.AddChild(_recipeList);
         _guide = new Label { Text = "Select a recipe to see its materials.", CustomMinimumSize = new Vector2(280, 50), AutowrapMode = TextServer.AutowrapMode.WordSmart };
         right.AddChild(_guide);
+        _creativeHeader = new Label { Text = "CREATIVE BLOCK PALETTE" }; right.AddChild(_creativeHeader);
+        _creativePalette = new OptionButton();
+        foreach (BlockType block in Enum.GetValues<BlockType>())
+            if (block is not (BlockType.Air or BlockType.GrassSide or BlockType.SnowSide))
+                _creativePalette.AddItem(block.ToString(), (int)block);
+        _creativePalette.ItemSelected += index =>
+        {
+            _world.Survival.SelectCreativeBlock((BlockType)_creativePalette.GetItemId((int)index));
+            Changed?.Invoke();
+        };
+        right.AddChild(_creativePalette);
         _cursorLabel = new Label { Text = "", MouseFilter = Control.MouseFilterEnum.Ignore, ZIndex = 10 };
         _overlay.AddChild(_cursorLabel);
     }
@@ -100,7 +115,12 @@ public partial class InventoryPanel : CanvasLayer
     {
         _mode = mode; _cell = cell; _overlay.Visible = true;
         var showGuide = mode is InventoryMode.Personal or InventoryMode.Station;
+        var creative = _world.Survival.Mode == GameMode.Creative;
         _recipeHeader.Visible = showGuide; _recipeList.Visible = showGuide; _guide.Visible = showGuide;
+        _creativeHeader.Visible = creative; _creativePalette.Visible = creative;
+        if (creative)
+            for (var i = 0; i < _creativePalette.ItemCount; i++)
+                if (_creativePalette.GetItemId(i) == (int)_world.Survival.CreativeBlock) { _creativePalette.Select(i); break; }
         _shownRecipes = RecipeBook.All.Where(recipe => !recipe.Station || mode == InventoryMode.Station).ToArray();
         _recipeList.Clear();
         foreach (var recipe in _shownRecipes) _recipeList.AddItem(ItemCatalog.Get(recipe.Output).Name + $" ×{recipe.Count}");
@@ -209,8 +229,9 @@ public partial class InventoryPanel : CanvasLayer
     private void Craft()
     {
         var grid = CraftingGrid();
+        var recipe = RecipeBook.Match(grid, _craftGrid.Columns, _mode == InventoryMode.Station);
         if (RecipeBook.Craft(grid, _craftGrid.Columns, _mode == InventoryMode.Station, _player.Slots))
-        { Changed?.Invoke(); Refresh(); }
+        { if (recipe != null) Crafted?.Invoke(recipe); Changed?.Invoke(); Refresh(); }
     }
     private void DropCursor()
     {

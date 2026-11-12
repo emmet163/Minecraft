@@ -1,6 +1,6 @@
-# Stonewake — Phases 1–4
+# Stonewake — Phases 1–5
 
-Stonewake is an original voxel sandbox prototype made with Godot 4 C#. Phase 4 adds a 36-slot inventory, data-driven crafting and equipment, furnaces, storage chests, and per-world inventory saves to the existing movement, terrain, mining, and building systems.
+Stonewake is an original voxel sandbox prototype made with Godot 4 C#. Phase 5 adds survival health, hunger, weather, a day-night cycle, beds, and a Creative mode to the existing movement, terrain, mining, building, inventory, and crafting systems.
 
 ## Requirements
 
@@ -36,6 +36,9 @@ godot --path .
 | Select hotbar slot | 1–9 or mouse wheel |
 | Change mining tool | Q (hand, pickaxe, shovel) |
 | Open inventory | E |
+| Eat food / use bandage in selected slot | F |
+| Respawn after death | R or Respawn button |
+| Fly in Creative | Space up, Ctrl down, WASD horizontally |
 
 The pause menu has mouse sensitivity, signed integer world seed, and render distance controls (2–6 chunks). Applying world settings regenerates the terrain and moves the player to a clear spawn. Settings persist in Godot's `user://stonewake.cfg`. The upper-left labels show the targeted block, current biome, seed, and loaded/pending chunk counts.
 
@@ -59,6 +62,12 @@ Craft four planks in the 2×2 grid to make a crafting station, then place and ri
 
 Right click a chest for 27 storage slots. Right click a furnace to insert ore or sand, fuel, and collect the output. Coal, wood, planks, and some crafted wood items burn as fuel. Furnace progress, chest contents, crafting grids, equipment, and player inventory are saved per world seed in `user://items_<seed>.json` and restored on relaunch. The item, crafting, and smelting registries are in `Data/items.json`, `Data/recipes.json`, and `Data/smelting.json`.
 
+## Survival and weather
+
+The HUD displays health, hunger, oxygen when submerged, experience, day, time, and weather. Falling, drowning, suffocation, starvation, severe cold or heat, and lightning can damage the player. Hunger drains gradually, faster while sprinting. With enough food, health regenerates after a short delay. Select berries, a berry mix, or a field ration and press **F** to eat; a bandage also uses **F** to restore health. Craft a leaf bed, place it, and right click it to set your respawn point. At night, using the bed advances to morning and provides a little rest. On death, carried items drop at the death location; use **R** or the on-screen button to respawn. A destroyed bed causes respawn at the world spawn.
+
+A day lasts 20 real-time minutes. Seeded weather moves between clear skies, rain, and thunderstorms; snow replaces rain in snowy biomes. Light and sky colors change through the day, with moonlight at night and flashes during storms. The pause menu offers **Survival** and **Creative**. Creative grants flight, damage immunity, instant mining, and unlimited block placement; choose blocks from the inventory's Creative palette. Mode, survival meters, experience, bed spawn, time, and weather save with the world inventory.
+
 ## Tests
 
 ```powershell
@@ -67,9 +76,10 @@ dotnet build Stonewake.csproj -c Debug
 godot --headless --path . res://Tests/RuntimeProbe.tscn
 godot --headless --path . res://Tests/InteractionProbe.tscn
 godot --headless --path . res://Tests/InventoryProbe.tscn
+godot --headless --path . res://Tests/SurvivalProbe.tscn
 ```
 
-The runtime probes cover controls, streaming, block interaction, inventory opening, and station interfaces. The pure C# suite checks item transfers, recipes, durability, furnace fuel, and persistence. Executed results and rendered-frame inspection are recorded in `TEST_REPORT.md`.
+The runtime probes cover controls, streaming, block interaction, inventory opening, station interfaces, and survival. The pure C# suite checks item transfers, recipes, durability, furnace fuel, survival rules, world cycle, and persistence. Executed results and rendered-frame inspection are recorded in `TEST_REPORT.md`.
 
 ## Project layout
 
@@ -82,6 +92,7 @@ The runtime probes cover controls, streaming, block interaction, inventory openi
 - `Scripts/World/WorldEdits.cs` — per-seed, world-coordinate edit persistence
 - `Scripts/Player/HotbarInventory.cs` — 36 player slots, nine-slot hotbar, and equipped gear
 - `Scripts/Items/` and `Data/` — item stacks, recipes, furnace and chest state, and data-driven definitions
+- `Scripts/Survival/` — health, hunger, hazards, modes, time, weather, and save records
 - `Tests/` and `Scripts/Tests/` — deterministic logic and headless Godot regression checks
 
 The textures are generated from original colors and a deterministic pixel pattern at runtime. No proprietary game assets are included.

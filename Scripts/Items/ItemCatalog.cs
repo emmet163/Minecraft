@@ -8,7 +8,8 @@ using Stonewake.World;
 namespace Stonewake.Items;
 
 public sealed record ItemDef(string Id, string Name, int Stack, string Category, string? Block,
-    int Durability, int Tier, float Speed, float FuelSeconds, string Description);
+    int Durability, int Tier, float Speed, float FuelSeconds, string Description,
+    int Nutrition = 0, float SaturationGain = 0, int Healing = 0);
 
 public static class ItemCatalog
 {

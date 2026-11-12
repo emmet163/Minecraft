@@ -13,6 +13,7 @@
     <Compile Include="../Scripts/World/WorldGenerator.cs" Link="WorldGenerator.cs" />
     <Compile Include="../Scripts/Items/*.cs" Link="Items/%(Filename)%(Extension)" />
     <Compile Include="../Scripts/Player/HotbarInventory.cs" Link="HotbarInventory.cs" />
+    <Compile Include="../Scripts/Survival/*.cs" Link="Survival/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Data/*.json" Link="Data/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

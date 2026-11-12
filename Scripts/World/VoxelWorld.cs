@@ -37,7 +37,7 @@ public partial class VoxelWorld : Node3D
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Pausable;
-        for (var i = 1; i <= (int)BlockType.Chest; i++)
+        for (var i = 1; i <= (int)BlockType.Bed; i++)
             _materials[(BlockType)i] = BlockPalette.Create((BlockType)i);
     }
 
@@ -115,6 +115,11 @@ public partial class VoxelWorld : Node3D
     }
 
     public bool IsLoaded(int x, int z) => _loaded.ContainsKey(new Vector2I(FloorDiv(x, ChunkData.Size), FloorDiv(z, ChunkData.Size)));
+    public void EnsureLoaded(int x, int z)
+    {
+        var key = new Vector2I(FloorDiv(x, ChunkData.Size), FloorDiv(z, ChunkData.Size));
+        if (!_loaded.ContainsKey(key)) BuildNow(key);
+    }
     public StandardMaterial3D MaterialFor(BlockType type) => _materials[type];
 
     public bool ApplyChanges(params (CellKey Cell, BlockState State)[] changes)
@@ -162,6 +167,7 @@ public partial class VoxelWorld : Node3D
     }
 
     public Biome GetBiome(int x, int z) => _generator.BiomeAt(x, z);
+    public int SurfaceHeight(int x, int z) => _generator.SurfaceHeight(x, z);
 
     public override void _Process(double delta)
     {

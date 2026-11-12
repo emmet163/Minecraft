@@ -6,6 +6,7 @@ using Stonewake.Items;
 using Stonewake.Saving;
 using Stonewake.UI;
 using Stonewake.World;
+using Stonewake.Survival;
 
 namespace Stonewake.Game;
 
@@ -53,6 +54,7 @@ public partial class Main : Node3D
         _inventoryPanel.Changed += () => { SaveItems(); _hud.SetHotbar(_inventory); };
         _inventoryPanel.DropRequested += stack => SpawnItem(stack.Id, stack.Count, _player.GlobalPosition + Vector3.Up);
         AddChild(_inventoryPanel);
+        SetupSurvival();
         _outlineMaterial = new StandardMaterial3D
         {
             AlbedoColor = new Color(1f, .94f, .35f),
@@ -76,6 +78,11 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        if (_dead)
+        {
+            if (@event is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.R }) Respawn();
+            return;
+        }
         if (@event.IsActionPressed("pause"))
         {
             if (_inventoryPanel.IsOpen) { _inventoryPanel.Close(); GetViewport().SetInputAsHandled(); return; }
@@ -90,6 +97,8 @@ public partial class Main : Node3D
             GetViewport().SetInputAsHandled(); return;
         }
         if (_inventoryPanel.IsOpen) return;
+        if (@event is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.F })
+        { UseSelected(); GetViewport().SetInputAsHandled(); return; }
         if (@event is InputEventMouseButton mouse)
         {
             if (mouse.ButtonIndex == MouseButton.Left) _mineHeld = mouse.Pressed;
@@ -114,7 +123,7 @@ public partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_paused || _inventoryPanel.IsOpen) return;
+        if (_paused || _inventoryPanel.IsOpen || _dead) return;
         if (_mineHeld && !Input.IsMouseButtonPressed(MouseButton.Left)) _mineHeld = false;
         var camera = _player.Camera;
         var origin = camera.GlobalPosition;
@@ -180,12 +189,33 @@ public partial class Main : Node3D
     public void ApplyWorldSettings(int seed, int renderDistance)
     {
         SaveItems();
+        _itemSaveOverride = null;
         var error = SaveStore.SaveWorldSettings(seed, renderDistance);
         if (error != Error.Ok) GD.PushWarning($"Could not save world settings: {error}");
         _world.Configure(seed, renderDistance, _player);
         LoadItems();
+        ApplyMode();
         _hud.SetHotbar(_inventory);
         _hud.SetTarget("");
+        _target = null;
+        _outline.Visible = false;
+        ResetMining();
+        foreach (var drop in _drops) if (GodotObject.IsInstanceValid(drop)) drop.QueueFree();
+        _drops.Clear();
+    }
+
+    // Isolated files keep automated Godot probes away from player worlds and settings.
+    public void ConfigureIsolatedWorld(int seed, string editPath, string itemPath)
+    {
+        _itemSaveOverride = itemPath;
+        _world.Configure(seed, 2, _player, editPath);
+        LoadItems();
+        _dead = false;
+        _hud.ShowDeath(false);
+        _player.ProcessMode = ProcessModeEnum.Pausable;
+        ApplyMode();
+        _hud.SetWorldSettings(seed, 2);
+        _hud.SetSurvival(Life, Cycle, IsSnowing());
         _target = null;
         _outline.Visible = false;
         ResetMining();
@@ -204,8 +234,8 @@ public partial class Main : Node3D
         }
         if (_miningCell != target) { _miningCell = target; _miningTime = 0; }
         _miningTime += elapsed;
-        var duration = _inventory.MiningSeconds(state.Type);
-        var progress = Mathf.Clamp(_miningTime / duration, 0, 1);
+        var duration = Life.Mode == GameMode.Creative ? 0f : _inventory.MiningSeconds(state.Type);
+        var progress = duration <= 0 ? 1f : Mathf.Clamp(_miningTime / duration, 0, 1);
         _hud.SetMiningProgress(progress);
         _outlineMaterial.AlbedoColor = new Color(1f, .94f - progress * .65f, .35f - progress * .25f);
         if (_miningTime < duration) return false;
@@ -214,11 +244,15 @@ public partial class Main : Node3D
             : _world.ApplyChanges((target, BlockState.Empty));
         ResetMining();
         if (!changed) return false;
-        _inventory.WearTool();
+        if (Life.Mode == GameMode.Survival) _inventory.WearTool();
         ReleaseContainer(target, state.Type);
         SaveItems();
         var dropped = BlockRules.DropType(state.Type);
-        if (dropped != BlockType.Air) SpawnDrop(dropped, new Vector3(target.X, target.Y + .5f, target.Z));
+        if (Life.Mode == GameMode.Survival && dropped != BlockType.Air)
+            SpawnDrop(dropped, new Vector3(target.X, target.Y + .5f, target.Z));
+        if (Life.Mode == GameMode.Survival && state.Type is BlockType.Coal or BlockType.Copper or BlockType.Iron or BlockType.Gold)
+            Life.AddExperience(2);
+        else if (Life.Mode == GameMode.Survival) Life.AddExperience(1);
         SpawnBurst(state.Type, new Vector3(target.X, target.Y, target.Z));
         _breakSound.Play();
         return true;
@@ -227,6 +261,7 @@ public partial class Main : Node3D
     public bool TryPlaceSelected(CellKey target, Vector3I normal)
     {
         var targetState = _world.GetState(target.X, target.Y, target.Z);
+        if (targetState.Type == BlockType.Bed) return SleepAt(target);
         if (targetState.Type is BlockType.CraftingStation or BlockType.Chest or BlockType.Furnace)
         {
             OpenInventory(targetState.Type switch
@@ -249,9 +284,10 @@ public partial class Main : Node3D
             if (toggled) _placeSound.Play();
             return toggled;
         }
-        if (targetState.Type == BlockType.Air || _inventory.SelectedStack.IsEmpty || _inventory.SelectedBlock == BlockType.Air) return false;
+        if (targetState.Type == BlockType.Air || Life.Mode == GameMode.Survival &&
+            (_inventory.SelectedStack.IsEmpty || _inventory.SelectedBlock == BlockType.Air)) return false;
         var cell = new CellKey(target.X + normal.X, target.Y + normal.Y, target.Z + normal.Z);
-        var type = _inventory.SelectedBlock;
+        var type = Life.Mode == GameMode.Creative ? Life.CreativeBlock : _inventory.SelectedBlock;
         if (!CanPlace(cell, type, normal)) return false;
         var facing = FacingFromCamera();
         var properties = (byte)(facing | (type == BlockType.Slab && normal.Y < 0 ? 4 : 0));
@@ -260,7 +296,7 @@ public partial class Main : Node3D
             ? _world.ApplyChanges((cell, state), (new CellKey(cell.X, cell.Y + 1, cell.Z), new BlockState(type, (byte)(properties | 4))))
             : _world.ApplyChanges((cell, state));
         if (!placed) return false;
-        _inventory.SpendSelected();
+        if (Life.Mode == GameMode.Survival) _inventory.SpendSelected();
         SaveItems();
         _hud.SetHotbar(_inventory);
         SpawnBurst(type, new Vector3(cell.X, cell.Y, cell.Z));
@@ -315,6 +351,8 @@ public partial class Main : Node3D
         }
         else if (state.Type is BlockType.Plant or BlockType.Flower)
             size = new Vector3(.38f, .65f, .38f);
+        else if (state.Type == BlockType.Bed)
+        { size.Y = .525f; position.Y -= .25f; }
         else if (state.Type == BlockType.Door)
         {
             position.Y += state.Upper ? -.5f : .5f;
@@ -408,10 +446,12 @@ public partial class Main : Node3D
         }
         _saveClock += delta;
         if (active && _saveClock >= 1) { _saveClock = 0; SaveItems(); }
+        UpdateSurvival((float)delta);
     }
 
     private double _saveClock;
     private bool _itemsWritable = true;
+    private string? _itemSaveOverride;
     public void OpenInventory(InventoryMode mode, CellKey cell = default)
     {
         if (_paused) return;
@@ -436,10 +476,10 @@ public partial class Main : Node3D
         if (grid == null) return;
         foreach (var stack in grid.Snapshot()) if (!stack.IsEmpty) SpawnItem(stack.Id, stack.Count, new Vector3(cell.X, cell.Y + 1, cell.Z));
     }
-    private string ItemSavePath() => ProjectSettings.GlobalizePath($"user://items_{_world.Seed}.json");
+    private string ItemSavePath() => _itemSaveOverride ?? ProjectSettings.GlobalizePath($"user://items_{_world.Seed}.json");
     private void LoadItems()
     {
-        try { _worldItems.Load(ItemSavePath(), _inventory); _itemsWritable = true; }
+        try { _worldItems.Load(ItemSavePath(), _inventory, _world.Seed); _itemsWritable = true; }
         catch (Exception error) { GD.PushError($"Could not load inventory: {error}"); _inventory.Reset(); _worldItems.Clear(); _itemsWritable = false; }
     }
     private void SaveItems()
@@ -448,7 +488,16 @@ public partial class Main : Node3D
         try { _worldItems.Save(ItemSavePath(), _inventory); }
         catch (Exception error) { GD.PushError($"Could not save inventory: {error}"); }
     }
-    public override void _ExitTree() { if (_world != null) SaveItems(); }
+    public override void _ExitTree()
+    {
+        if (_world != null) SaveItems();
+        foreach (var player in new[] { _breakSound, _placeSound, _thunder })
+        {
+            if (player == null || !GodotObject.IsInstanceValid(player)) continue;
+            player.Stop();
+            player.Stream = null;
+        }
+    }
 
     private static void RegisterControls()
     {
@@ -470,25 +519,28 @@ public partial class Main : Node3D
 
     private void CreateLighting()
     {
-        var environment = new WorldEnvironment();
-        environment.Environment = new Godot.Environment
+        _worldEnvironment = new WorldEnvironment();
+        _skyMaterial = new ProceduralSkyMaterial
+        {
+            SkyTopColor = new Color(0.20f, 0.43f, 0.72f),
+            SkyHorizonColor = new Color(0.70f, 0.81f, 0.91f),
+            GroundHorizonColor = new Color(0.70f, 0.81f, 0.91f),
+            GroundBottomColor = new Color(0.45f, 0.65f, 0.82f)
+        };
+        _worldEnvironment.Environment = new Godot.Environment
         {
             BackgroundMode = Godot.Environment.BGMode.Sky,
-            Sky = new Sky { SkyMaterial = new ProceduralSkyMaterial
-            {
-                SkyTopColor = new Color(0.20f, 0.43f, 0.72f),
-                SkyHorizonColor = new Color(0.70f, 0.81f, 0.91f),
-                GroundHorizonColor = new Color(0.70f, 0.81f, 0.91f),
-                GroundBottomColor = new Color(0.45f, 0.65f, 0.82f)
-            } },
+            Sky = new Sky { SkyMaterial = _skyMaterial },
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
             AmbientLightColor = new Color(0.76f, 0.81f, 0.89f),
             AmbientLightEnergy = 0.65f,
             ReflectedLightSource = Godot.Environment.ReflectionSource.Bg
         };
-        AddChild(environment);
-        var sun = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
-        sun.RotationDegrees = new Vector3(-52f, -35f, 0f);
-        AddChild(sun);
+        AddChild(_worldEnvironment);
+        _sun = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
+        _sun.RotationDegrees = new Vector3(-52f, -35f, 0f);
+        AddChild(_sun);
+        _moon = new DirectionalLight3D { LightEnergy = 0, LightColor = new Color(.62f, .72f, 1f), ShadowEnabled = false };
+        AddChild(_moon);
     }
 }

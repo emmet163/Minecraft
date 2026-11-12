@@ -105,6 +105,9 @@ public static class ChunkMesher
             case BlockType.Slab:
                 Box(new Vector3(0, state.Upper ? .25f : -.25f, 0), new Vector3(1, .5f, 1));
                 break;
+            case BlockType.Bed:
+                Box(new Vector3(0, -.25f, 0), new Vector3(1, .5f, 1));
+                break;
             case BlockType.Stairs:
                 Box(new Vector3(0, -.25f, 0), new Vector3(1, .5f, 1));
                 var upper = state.Facing switch

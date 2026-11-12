@@ -6,5 +6,5 @@ public enum BlockType : byte
     Wood, Leaves, Flower, Plant, Coal, Copper, Iron, Gold,
     GrassSide, SnowSide, // Materials only; never stored in chunk voxels.
     Gravel, Glass, Slab, Stairs, Door, Fence,
-    CraftingStation, Furnace, Chest
+    CraftingStation, Furnace, Chest, Bed
 }

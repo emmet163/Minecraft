@@ -35,6 +35,7 @@ public static class BlockPalette
             BlockType.CraftingStation => new Color(0.56f, 0.38f, 0.20f),
             BlockType.Furnace => new Color(0.36f, 0.38f, 0.40f),
             BlockType.Chest => new Color(0.62f, 0.39f, 0.17f),
+            BlockType.Bed => new Color(0.45f, 0.56f, 0.30f),
             _ => new Color(1f, 0f, 1f)
         };
 

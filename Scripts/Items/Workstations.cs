@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using Stonewake.World;
+using Stonewake.Survival;
 
 namespace Stonewake.Items;
 
@@ -45,10 +46,13 @@ public sealed record FurnaceSave(ItemStack[] Slots, float Burn, float Progress);
 public sealed record ContainerSave(int X, int Y, int Z, ItemStack[] Slots);
 public sealed record FurnaceEntry(int X, int Y, int Z, FurnaceSave Furnace);
 public sealed record PlayerSave(ItemStack[] Slots, ItemStack[] Equipment, int Selected, int Tool, ItemStack Cursor,
-    ItemStack[] PersonalCraft, ContainerSave[] Stations, ContainerSave[] Chests, FurnaceEntry[] Furnaces);
+    ItemStack[] PersonalCraft, ContainerSave[] Stations, ContainerSave[] Chests, FurnaceEntry[] Furnaces,
+    SurvivalSave? Survival = null, WorldCycleSave? Cycle = null);
 
 public sealed class WorldItems
 {
+    public SurvivalState Survival { get; } = new();
+    public WorldCycle Cycle { get; } = new();
     public ItemStack Cursor { get; set; } = ItemStack.Empty;
     public InventoryGrid PersonalCraft { get; } = new(4);
     public readonly Dictionary<CellKey, InventoryGrid> Stations = new();
@@ -69,7 +73,7 @@ public sealed class WorldItems
         if (!Furnaces.TryGetValue(cell, out var furnace)) Furnaces[cell] = furnace = new FurnaceState();
         return furnace;
     }
-    public void Clear() { Cursor = ItemStack.Empty; PersonalCraft.Load(Array.Empty<ItemStack>()); Stations.Clear(); Chests.Clear(); Furnaces.Clear(); }
+    public void Clear() { Cursor = ItemStack.Empty; PersonalCraft.Load(Array.Empty<ItemStack>()); Stations.Clear(); Chests.Clear(); Furnaces.Clear(); Survival.Reset(); }
     public void Save(string path, Player.HotbarInventory player)
     {
         var save = new PlayerSave(player.Slots.Snapshot(), player.Equipment.Snapshot(), player.Selected,
@@ -77,7 +81,8 @@ public sealed class WorldItems
             Stations.Select(pair => new ContainerSave(pair.Key.X, pair.Key.Y, pair.Key.Z, pair.Value.Snapshot())).ToArray(),
             Chests.Select(pair => new ContainerSave(pair.Key.X, pair.Key.Y, pair.Key.Z, pair.Value.Snapshot())).ToArray(),
             Furnaces.Select(pair => new FurnaceEntry(pair.Key.X, pair.Key.Y, pair.Key.Z,
-                new FurnaceSave(pair.Value.Slots.Snapshot(), pair.Value.BurnRemaining, pair.Value.Progress))).ToArray());
+                new FurnaceSave(pair.Value.Slots.Snapshot(), pair.Value.BurnRemaining, pair.Value.Progress))).ToArray(),
+            Survival.Snapshot(), Cycle.Snapshot());
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -92,13 +97,16 @@ public sealed class WorldItems
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
-    public void Load(string path, Player.HotbarInventory player)
+    public void Load(string path, Player.HotbarInventory player, int seed = 12345)
     {
         Clear();
+        Cycle.Configure(seed);
         player.Reset();
         if (!File.Exists(path)) return;
         var save = JsonSerializer.Deserialize<PlayerSave>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty inventory save");
         player.Load(save.Slots, save.Equipment, save.Selected, save.Tool);
+        Survival.Load(save.Survival);
+        Cycle.Load(save.Cycle, seed);
         Cursor = save.Cursor.IsEmpty || !ItemCatalog.Exists(save.Cursor.Id) ? ItemStack.Empty : save.Cursor;
         PersonalCraft.Load(save.PersonalCraft ?? Array.Empty<ItemStack>());
         foreach (var entry in save.Stations ?? Array.Empty<ContainerSave>())
