@@ -8,6 +8,9 @@ export class PlayerController {
   readonly keys=new Set<string>();
   readonly velocity=new THREE.Vector3();
   sensitivity=.18;
+  flying=false;
+  onLand:(distance:number)=>void=()=>{};
+  private airborne=false;private peakY=0;
   yaw=0; pitch=0;
   grounded=false;
   private jumpHeld=false;
@@ -20,6 +23,7 @@ export class PlayerController {
     this.pitch=Math.max(-Math.PI*.494,Math.min(Math.PI*.494,this.pitch-dy*this.sensitivity*.01));
     this.object.rotation.y=this.yaw; this.camera.rotation.x=this.pitch;
   }
+  setFlight(value:boolean){this.flying=value;this.airborne=false;this.velocity.set(0,0,0);}
   private collides(x:number,y:number,z:number,height:number): boolean {
     const radius=.34;
     for(let bz=cellOf(z-radius);bz<=cellOf(z+radius);bz++)
@@ -48,6 +52,15 @@ export class PlayerController {
   update(delta:number): void {
     delta=Math.min(delta,.05);
     if(!this.world.isLoaded(cellOf(this.position.x),cellOf(this.position.z))) return;
+    if(this.flying){
+      const forward=(this.keys.has('KeyW')?1:0)-(this.keys.has('KeyS')?1:0);
+      const right=(this.keys.has('KeyD')?1:0)-(this.keys.has('KeyA')?1:0);
+      const up=(this.keys.has('Space')?1:0)-(this.keys.has('ControlLeft')||this.keys.has('ControlRight')?1:0);
+      const speed=this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')?13:8;
+      this.velocity.set(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*right,up,-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*right).normalize().multiplyScalar(speed);
+      this.moveAxis('x',this.velocity.x*delta,1.8);this.moveAxis('z',this.velocity.z*delta,1.8);this.moveAxis('y',this.velocity.y*delta,1.8);return;
+    }
+    if(!this.grounded){if(!this.airborne){this.airborne=true;this.peakY=this.position.y;}else this.peakY=Math.max(this.peakY,this.position.y);}
     const crouching=this.keys.has('ControlLeft')||this.keys.has('ControlRight');
     const height=crouching?1.15:!this.collides(this.position.x,this.position.y,this.position.z,1.8)?1.8:1.15;
     this.camera.position.y=THREE.MathUtils.damp(this.camera.position.y,height===1.15?1.02:1.62,12,delta);
@@ -65,6 +78,7 @@ export class PlayerController {
     this.moveAxis('z',this.velocity.z*delta,height);
     this.grounded=false;
     this.moveAxis('y',this.velocity.y*delta,height);
+    if(this.grounded&&this.airborne){this.airborne=false;this.onLand(Math.max(0,this.peakY-this.position.y));}
   }
   overlapsBlock(x:number,y:number,z:number,block:BlockState=state(Block.Stone)): boolean {
     const p=this.position,r=.34;

@@ -10,7 +10,7 @@ const errors=[];
 page.on('pageerror',error=>errors.push(error.message));
 page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
 const countEdits=()=>page.evaluate(async()=>{
-  const request=indexedDB.open('stonewake-web-edits',1);
+  const request=indexedDB.open('stonewake-web-edits',2);
   const db=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const transaction=db.transaction('edits','readonly');
   const query=transaction.objectStore('edits').getAll();
@@ -28,10 +28,15 @@ try {
   await page.waitForFunction(()=>!document.querySelector('#overlay')?.classList.contains('hidden')===false);
   await page.keyboard.down('KeyW'); await page.waitForTimeout(500); await page.keyboard.up('KeyW');
   await page.keyboard.press('Digit2');
-  assert.match(await page.locator('#tool').textContent(),/Dirt/);
+  assert.match(await page.locator('#tool').textContent(),/Stone/);
   await page.waitForTimeout(1500);
   const chunks=Number((await page.locator('#world-info').textContent()).match(/(\d+) chunks/)?.[1]);
   assert.ok(chunks>=1,`No rendered chunk: ${chunks}`);
+  const metrics=await page.evaluate(async()=>{
+    const samples=[];let last=performance.now();
+    for(let i=0;i<60;i++){await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}
+    return {meanMs:samples.reduce((a,b)=>a+b,0)/samples.length,maxMs:Math.max(...samples),heapMb:performance.memory?.usedJSHeapSize/1048576??null};
+  });
   await page.screenshot({path:'.artifacts/browser-game.png'});
   for(let i=0;i<8 && !(await page.locator('#target').textContent());i++) {
     await page.keyboard.down('KeyW');await page.waitForTimeout(350);await page.keyboard.up('KeyW');
@@ -49,7 +54,7 @@ try {
   assert.ok(placeTarget,'No block target for placement');
   await page.mouse.click(640,430,{button:'right'});
   await page.waitForTimeout(350);
-  assert.match(await page.locator('#notice').textContent(),/Placed Dirt/);
+  assert.match(await page.locator('#notice').textContent(),/Placed Stone/);
   const placed=await countEdits();
   assert.ok(placed>saved,'Placed edit was not persisted in IndexedDB');
   await page.keyboard.press('Escape');
@@ -61,5 +66,5 @@ try {
   await page.locator('#apply').click();
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('stonewake-web-settings')||'{}').sensitivity===.26);
   assert.deepEqual(errors,[]);
-  console.log(`BROWSER PASS: WebGL scene, ${chunks} chunks, pointer lock, movement, hotbar, mining, placement, ${placed} saved edits after reload, pause; no console/page errors`);
+  console.log(`BROWSER PASS: WebGL scene, ${chunks} chunks, pointer lock, movement, hotbar, mining, placement, ${placed} saved edits after reload, pause; no console/page errors; mean rAF ${metrics.meanMs.toFixed(1)} ms, max ${metrics.maxMs.toFixed(1)} ms, JS heap ${metrics.heapMb?.toFixed(1)??'unavailable'} MB`);
 } finally { await browser.close(); }

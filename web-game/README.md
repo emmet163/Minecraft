@@ -1,17 +1,17 @@
-# Stonewake Web — migration Part 1
+# Stonewake Web
 
-This is the browser version of Stonewake, built with Three.js, TypeScript, and Vite. It lives entirely in `web-game/`; the original Godot 4 C# project at the repository root remains available. The Git tag `godot-phase5-before-web-migration` marks the original Phase 5 checkpoint.
+Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
-## Run
+## Run locally
 
-Use Node.js 20.19+ or 22.12+ and npm. From `web-game/`:
+Install Node.js 20.19+ or 22.12+ and npm. From `web-game/`:
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Open the local address Vite prints, normally `http://127.0.0.1:5173/`. Click **Enter world** to capture the mouse. Escape releases it and opens the pause/settings menu.
+Open the printed address, normally `http://127.0.0.1:5173/`, then select **Enter world**. Escape releases the mouse and opens the pause menu.
 
 ```powershell
 npm run typecheck
@@ -20,32 +20,40 @@ npm run build
 npm run preview
 ```
 
-`npm run build` writes the deployable static site to `dist/`. `npm run preview` serves that build locally, normally at `http://127.0.0.1:4173/`. Vite uses relative asset paths for static hosting. No Vercel deployment has been made.
-For a future Vercel project, set the root directory to `web-game`, build command to `npm run build`, and output directory to `dist`.
+`npm run build` creates a static `dist/` directory. `npm run preview` serves it at `http://127.0.0.1:4173/` by default. The optional browser tests require Microsoft Edge at its standard Windows installation path and a running dev or preview server:
 
-For the optional Edge browser regression, start `npm run dev` in one terminal, then run `npm run test:browser` in another. The test uses the installed Microsoft Edge path on Windows. Set `STONEWAKE_URL=http://127.0.0.1:4173/` to test a running production preview instead.
+```powershell
+npm run test:browser
+npm run test:integration
+npm run test:stations
+```
+
+Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview.
 
 ## Controls
 
 | Action | Control |
 | --- | --- |
-| Move / look | WASD / mouse |
+| Move and look | WASD and mouse |
 | Jump / sprint / crouch | Space / Shift / Ctrl |
-| Mine / place | Hold left mouse / right mouse |
-| Toggle door | Right mouse |
-| Hotbar | 1–9 or mouse wheel |
-| Mining tool | Q cycles hand, pickaxe, shovel |
-| Pause / release pointer | Escape |
+| Creative flight up / down | Space / Ctrl |
+| Mine / place or use block | Hold left mouse / right mouse |
+| Select hotbar | 1–9 or mouse wheel |
+| Cycle mining tool | Q |
+| Open inventory | E |
+| Eat selected food | F |
+| Pause and release mouse | Escape |
 
-The pause menu changes the signed world seed, render distance (2–6 chunks), and mouse sensitivity. World settings persist in `localStorage`; block edits persist by seed and world coordinate in IndexedDB. The nine-slot hotbar is a temporary Part 1 block supply and is not saved.
+The pause menu sets the world seed, render distance, mouse sensitivity, and Survival or Creative mode. In Creative mode, choose a block from the inventory palette. Right-click a crafting station, chest, furnace, door, or bed to use it. Inventory slots support left-click transfers and right-click splitting or placing one item. The first nine of 36 inventory slots form the hotbar. The inventory also contains equipment slots, a personal 2×2 grid, and a recipe guide; a crafting station provides a 3×3 grid.
 
-## Implemented in Part 1
+## World and saves
 
-- First-person movement, collision, jumping, sprinting, crouching, smooth mouse look, and pointer lock.
-- The eight seeded biomes from the Godot terrain generator: ocean, beach, plains, forest, desert, mountains, snow, and swamp. The port includes terrain elevation, rivers/lakes, caves, ravines, ores, trees, plants, and flowers.
-- 16×16×96 chunks with a padded border, hidden-face culling, two terrain workers, distance-based loading/unloading, and cleanup of old geometry. Seed changes ignore stale worker results.
-- Block ray selection and outlines, hardness and tool speeds, mining, placement restrictions, door toggles, falling placed sand/gravel, dropped block pickups, and persistent edits.
-- Original procedural mining and placement sounds generated with browser audio.
-- Original procedural color textures generated at runtime; no proprietary assets.
+Seeded 16×16×96 chunks stream around the player. The generator includes oceans, beaches, plains, forests, deserts, mountains, snow, swamps, caves, ravines, rivers, lakes, ores, trees, flowers, and vegetation. Mining and building use selection outlines, collision restrictions, tool speeds and wear, falling sand and gravel, pickups, and original procedural sounds. Survival adds health, hunger, food, drowning, suffocation, fall and weather damage, death and respawn, beds, day and night, rain, snow, thunderstorms, and a status HUD.
 
-Inventory, crafting, furnaces, chests, survival meters and hazards, day/night, weather, beds, Creative mode, and Phase 5 save data remain in the untouched Godot project for Part 2 migration. See [MIGRATION_REPORT.md](MIGRATION_REPORT.md), [TEST_REPORT.md](TEST_REPORT.md), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, and spawn point. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control and world settings. Saved Godot `user://` files are not imported.
+
+## Deploy to Vercel
+
+Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No deployment was performed during migration.
+
+See [MIGRATION_REPORT.md](MIGRATION_REPORT.md), [TEST_REPORT.md](TEST_REPORT.md), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for verified coverage and limits.

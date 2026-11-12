@@ -125,6 +125,7 @@ export class VoxelWorld {
     if(this.fallClock>=.14) { this.fallClock=0; this.stepGravity(); }
   }
   isLoaded(x: number,z: number): boolean { return this.chunks.has(key(floorDiv(x,SIZE),floorDiv(z,SIZE))); }
+  ensureLoaded(x:number,z:number):void{const cx=floorDiv(x,SIZE),cz=floorDiv(z,SIZE);if(!this.chunks.has(key(cx,cz)))this.install(this.generator.generate(cx,cz));}
   getState(x: number,y: number,z: number): BlockState {
     const chunk=this.chunks.get(key(floorDiv(x,SIZE),floorDiv(z,SIZE)));
     return chunk?.data.getState(x-chunk.data.cx*SIZE,y,z-chunk.data.cz*SIZE) ?? air;

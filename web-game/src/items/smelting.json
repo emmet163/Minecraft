@@ -1,0 +1,6 @@
+[
+ {"input":"sand","output":"glass","seconds":4},
+ {"input":"copper","output":"copper_ingot","seconds":4},
+ {"input":"iron","output":"iron_ingot","seconds":4},
+ {"input":"gold","output":"gold_ingot","seconds":4}
+]

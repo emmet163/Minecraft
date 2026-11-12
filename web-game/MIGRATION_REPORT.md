@@ -1,31 +1,26 @@
-# Godot-to-browser migration report — Part 1
+# Godot-to-browser migration report — Parts 1 and 2
 
-Date: 2026-11-12
+Date: 2026-11-12. Browser project: `web-game/`. Original Godot 4.4.1 .NET/C# Phase 5 project: repository root, protected at tag `godot-phase5-before-web-migration`. The separate `preview-site/` directory was left untouched. No deployment or Phase 6 work was performed.
 
-## Protected source and architecture
+## Source reviewed and migration map
 
-The original Godot Phase 5 project is committed at `161df55` and checkpointed by tag `godot-phase5-before-web-migration`. Its tracked source was not modified. The separate untracked `preview-site/` directory was also left alone.
+Part 1's Three.js, TypeScript, and Vite foundation was freshly checked before Part 2 work. For Part 2, the original `InventoryGrid`, `HotbarInventory`, `ItemCatalog`, `RecipeBook`, `Workstations`, `InventoryPanel`, `SurvivalState`, `WorldCycle`, and `Main.Survival` C# code plus original item/recipe/smelting JSON were inspected. The three JSON data files were copied unmodified.
 
-The inspected Godot architecture has these dependencies:
+| Godot system | Browser counterpart |
+| --- | --- |
+| Seeded world generation, chunks, meshing and edits | `src/world/`, `src/render/terrain.ts`, terrain worker, IndexedDB edits |
+| Player controller, camera, interaction and sounds | `src/player/controller.ts`, `src/main.ts`, `src/render/sounds.ts` |
+| Item catalog, 36-slot inventory, hotbar, recipes, equipment, durability | `src/items/`, `src/ui/inventory.ts`, `src/ui/hud.ts` |
+| Personal and station crafting, chests, furnaces | `src/items/items.ts`, `src/ui/inventory.ts`, world interaction in `src/main.ts` |
+| Health, food, hazards, death, beds, modes, day/night, weather | `src/survival/state.ts`, `src/render/weather.ts`, `src/main.ts`, survival HUD |
+| Block and player save data | `src/persistence/edits.ts` with IndexedDB version 2 and per-seed player records |
 
-| Original system | Depends on | Part 1 browser counterpart |
-| --- | --- | --- |
-| `WorldGenerator`, `ChunkData`, `BlockState` | Seeded world-coordinate noise and block IDs | `src/world/generator.ts`, `chunk.ts`, `blocks.ts` |
-| `ChunkMesher`, `VoxelChunk`, `VoxelWorld` | Padded border samples, edits, Godot meshes, streaming | `src/render/terrain.ts`, `src/world/world.ts`, `terrain.worker.ts` |
-| `WorldEdits` | Per-seed world-coordinate change records | `src/persistence/edits.ts` using IndexedDB |
-| `FirstPersonPlayer`, `ControlSettings` | Godot input, collision, camera | `src/player/controller.ts`, pointer lock and settings in `main.ts` |
-| `Main` interaction code, `BlockRules`, `DroppedBlock` | World, player, hotbar, save boundary | `src/world/raycast.ts`, `blocks.ts`, `main.ts`, `src/ui/hud.ts` |
-| Phase 4 item/crafting/workstation code | Inventory grids and item catalog | Reserved for Part 2 |
-| Phase 5 survival/world-cycle/weather code | Items, player, HUD, world state | Reserved for Part 2 |
+## Delivered browser gameplay
 
-The browser code uses the same integer-centered block coordinates as Godot, floor division for negative chunk coordinates, 16×16×96 chunks, and world-coordinate noise. A one-cell border lets neighboring chunk meshes cull shared faces independently of load order. Terrain workers return typed arrays; Three.js geometry is built on the main thread. Each asynchronous result carries a world epoch, and world edits are reapplied before a chunk is meshed.
+The seeded terrain and chunk streaming from Part 1 remain. Part 2 integrates pickups with the 36-slot inventory and its nine-slot hotbar, click transfers/splitting, 2×2 and 3×3 shaped/shapeless crafting, original recipe data, tool and armor tiers, equipment durability and tooltips, chest inventories, fuel-consuming furnaces and smelting. Survival includes health, hunger, saturation, food, fall and environmental damage, death drops and respawn, bed spawn points and sleeping, day/night lighting, rain/snow/storms, Survival and Creative modes, flight, a Creative block palette, and a status HUD. Terrain edits, player position/inventory/equipment, containers, seed, mode, status, spawn, and cycle state persist by seed. Save failures fall back to session memory with a visible warning.
 
-## Delivered
+## Verification
 
-Three.js rendering, sky and lighting; strict TypeScript and Vite; configurable player movement and pointer lock; eight seeded biomes and the inspected terrain features; chunk streaming and face culling; mining, placement, tool speeds, outlines, drops, door use, gravity blocks, procedural interaction sounds, a nine-slot interaction hotbar, and IndexedDB block-edit persistence. `package-lock.json` records compatible npm dependencies. Production output is in ignored `dist/`.
+The final TypeScript check, 13 Vitest tests, Vite production build, and Edge browser gameplay/workstation checks are detailed in [TEST_REPORT.md](TEST_REPORT.md). The browser tests covered save/reload, world edits, mining, crafting, tool wear, fall damage, food, death, bed use, Creative flight, chest, furnace, and 3×3 crafting. The production site uses relative asset paths and needs no backend for single-player play. The short software-rendered performance measurement was slow; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for limits and incomplete behavior.
 
-## Verification and remaining work
-
-Seven Vitest tests passed. Edge browser checks passed against both Vite dev and the production `dist` preview, including WebGL rendering, 25 loaded chunks, pointer lock, movement input, mining, placement, pause, and two persisted edits after reload. Type checking and production build passed. No test failed on the final run. Detailed results and initial failures fixed during development are in `TEST_REPORT.md`.
-
-Manual feel, audio, high render distances, and long-session memory/performance remain unverified. Other limits are in `KNOWN_ISSUES.md`. Inventory, crafting, survival systems, and their save migration are reserved for Part 2. No deployment was performed.
+Run and Vercel configuration instructions are in [README.md](README.md). Browser saves do not import Godot save files. No actual Vercel deployment was performed.
