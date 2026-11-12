@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using Stonewake.Player;
+using Stonewake.Items;
 using Stonewake.Saving;
 using Stonewake.UI;
 using Stonewake.World;
@@ -15,6 +16,8 @@ public partial class Main : Node3D
     private VoxelWorld _world = null!;
     private bool _paused;
     private readonly HotbarInventory _inventory = new();
+    private readonly WorldItems _worldItems = new();
+    private InventoryPanel _inventoryPanel = null!;
     private readonly List<DroppedBlock> _drops = new();
     private MeshInstance3D _outline = null!;
     private StandardMaterial3D _outlineMaterial = null!;
@@ -40,10 +43,16 @@ public partial class Main : Node3D
         AddChild(_player);
         var settings = SaveStore.LoadWorldSettings();
         _world.Configure(settings.Seed, settings.RenderDistance, _player);
+        LoadItems();
         _hud = new GameHud { Name = "HUD" };
         AddChild(_hud);
         _hud.SetWorldSettings(settings.Seed, settings.RenderDistance);
         _hud.SetHotbar(_inventory);
+        _inventoryPanel = new InventoryPanel { Name = "InventoryPanel" };
+        _inventoryPanel.Setup(_inventory, _worldItems);
+        _inventoryPanel.Changed += () => { SaveItems(); _hud.SetHotbar(_inventory); };
+        _inventoryPanel.DropRequested += stack => SpawnItem(stack.Id, stack.Count, _player.GlobalPosition + Vector3.Up);
+        AddChild(_inventoryPanel);
         _outlineMaterial = new StandardMaterial3D
         {
             AlbedoColor = new Color(1f, .94f, .35f),
@@ -69,11 +78,18 @@ public partial class Main : Node3D
     {
         if (@event.IsActionPressed("pause"))
         {
+            if (_inventoryPanel.IsOpen) { _inventoryPanel.Close(); GetViewport().SetInputAsHandled(); return; }
             SetPaused(!_paused);
             GetViewport().SetInputAsHandled();
             return;
         }
         if (_paused) return;
+        if (@event is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.E })
+        {
+            if (_inventoryPanel.IsOpen) _inventoryPanel.Close(); else OpenInventory(InventoryMode.Personal);
+            GetViewport().SetInputAsHandled(); return;
+        }
+        if (_inventoryPanel.IsOpen) return;
         if (@event is InputEventMouseButton mouse)
         {
             if (mouse.ButtonIndex == MouseButton.Left) _mineHeld = mouse.Pressed;
@@ -89,6 +105,7 @@ public partial class Main : Node3D
                 _inventory.CycleTool();
                 _hud.SetHotbar(_inventory);
                 ResetMining();
+                SaveItems();
             }
             else if (key.PhysicalKeycode >= Key.Key1 && key.PhysicalKeycode <= Key.Key9)
                 SelectSlot((int)(key.PhysicalKeycode - Key.Key1));
@@ -97,7 +114,7 @@ public partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_paused) return;
+        if (_paused || _inventoryPanel.IsOpen) return;
         if (_mineHeld && !Input.IsMouseButtonPressed(MouseButton.Left)) _mineHeld = false;
         var camera = _player.Camera;
         var origin = camera.GlobalPosition;
@@ -106,7 +123,19 @@ public partial class Main : Node3D
         query.Exclude = new Godot.Collections.Array<Rid> { _player.GetRid() };
         var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
         _target = null;
-        if (hit.Count > 0 && hit["collider"].AsGodotObject() is StaticBody3D)
+        var direction = (end - origin).Normalized();
+        var visibleDistance = hit.Count > 0 ? origin.DistanceTo(hit["position"].AsVector3()) : 6f;
+        var decoration = FindDecorativeTarget(origin, direction, visibleDistance);
+        if (decoration.HasValue)
+        {
+            var cell = decoration.Value;
+            var decorative = _world.GetState(cell.X, cell.Y, cell.Z);
+            _target = cell;
+            _targetNormal = Vector3I.Up;
+            _hud.SetTarget($"{decorative.Type}  ·  {cell.X}, {cell.Y}, {cell.Z}");
+            ShowOutline(new Vector3I(cell.X, cell.Y, cell.Z), decorative);
+        }
+        if (!_target.HasValue && hit.Count > 0 && hit["collider"].AsGodotObject() is StaticBody3D)
         {
             var inside = hit["position"].AsVector3() - hit["normal"].AsVector3() * .01f;
             var cell = new Vector3I(Mathf.RoundToInt(inside.X), Mathf.RoundToInt(inside.Y), Mathf.RoundToInt(inside.Z));
@@ -133,11 +162,29 @@ public partial class Main : Node3D
         _hud.SetWorldInfo($"Seed {_world.Seed}  ·  {_world.GetBiome(Mathf.RoundToInt(location.X), Mathf.RoundToInt(location.Z))}  ·  Chunks {_world.LoadedCount} / {_world.PendingCount} loading");
     }
 
+    public CellKey? FindDecorativeTarget(Vector3 origin, Vector3 direction, float visibleDistance)
+    {
+        for (var distance = .05f; distance < visibleDistance; distance += .05f)
+        {
+            var point = origin + direction * distance;
+            var cell = new Vector3I(Mathf.RoundToInt(point.X), Mathf.RoundToInt(point.Y), Mathf.RoundToInt(point.Z));
+            var decorative = _world.GetState(cell.X, cell.Y, cell.Z);
+            if (decorative.Type is not (BlockType.Plant or BlockType.Flower)) continue;
+            if (Mathf.Abs(point.X - cell.X) > .2f || Mathf.Abs(point.Z - cell.Z) > .2f ||
+                Mathf.Abs(point.Y - cell.Y) > .35f) continue;
+            return new CellKey(cell.X, cell.Y, cell.Z);
+        }
+        return null;
+    }
+
     public void ApplyWorldSettings(int seed, int renderDistance)
     {
+        SaveItems();
         var error = SaveStore.SaveWorldSettings(seed, renderDistance);
         if (error != Error.Ok) GD.PushWarning($"Could not save world settings: {error}");
         _world.Configure(seed, renderDistance, _player);
+        LoadItems();
+        _hud.SetHotbar(_inventory);
         _hud.SetTarget("");
         _target = null;
         _outline.Visible = false;
@@ -157,7 +204,7 @@ public partial class Main : Node3D
         }
         if (_miningCell != target) { _miningCell = target; _miningTime = 0; }
         _miningTime += elapsed;
-        var duration = BlockRules.MiningSeconds(state.Type, _inventory.Tool);
+        var duration = _inventory.MiningSeconds(state.Type);
         var progress = Mathf.Clamp(_miningTime / duration, 0, 1);
         _hud.SetMiningProgress(progress);
         _outlineMaterial.AlbedoColor = new Color(1f, .94f - progress * .65f, .35f - progress * .25f);
@@ -167,6 +214,9 @@ public partial class Main : Node3D
             : _world.ApplyChanges((target, BlockState.Empty));
         ResetMining();
         if (!changed) return false;
+        _inventory.WearTool();
+        ReleaseContainer(target, state.Type);
+        SaveItems();
         var dropped = BlockRules.DropType(state.Type);
         if (dropped != BlockType.Air) SpawnDrop(dropped, new Vector3(target.X, target.Y + .5f, target.Z));
         SpawnBurst(state.Type, new Vector3(target.X, target.Y, target.Z));
@@ -177,6 +227,16 @@ public partial class Main : Node3D
     public bool TryPlaceSelected(CellKey target, Vector3I normal)
     {
         var targetState = _world.GetState(target.X, target.Y, target.Z);
+        if (targetState.Type is BlockType.CraftingStation or BlockType.Chest or BlockType.Furnace)
+        {
+            OpenInventory(targetState.Type switch
+            {
+                BlockType.CraftingStation => InventoryMode.Station,
+                BlockType.Chest => InventoryMode.Chest,
+                _ => InventoryMode.Furnace
+            }, target);
+            return true;
+        }
         if (targetState.Type == BlockType.Door)
         {
             var lower = targetState.Upper ? new CellKey(target.X, target.Y - 1, target.Z) : target;
@@ -189,7 +249,7 @@ public partial class Main : Node3D
             if (toggled) _placeSound.Play();
             return toggled;
         }
-        if (targetState.Type == BlockType.Air || _inventory.Count(_inventory.SelectedBlock) <= 0) return false;
+        if (targetState.Type == BlockType.Air || _inventory.SelectedStack.IsEmpty || _inventory.SelectedBlock == BlockType.Air) return false;
         var cell = new CellKey(target.X + normal.X, target.Y + normal.Y, target.Z + normal.Z);
         var type = _inventory.SelectedBlock;
         if (!CanPlace(cell, type, normal)) return false;
@@ -201,6 +261,7 @@ public partial class Main : Node3D
             : _world.ApplyChanges((cell, state));
         if (!placed) return false;
         _inventory.SpendSelected();
+        SaveItems();
         _hud.SetHotbar(_inventory);
         SpawnBurst(type, new Vector3(cell.X, cell.Y, cell.Z));
         _placeSound.Play();
@@ -232,6 +293,7 @@ public partial class Main : Node3D
     {
         _inventory.Select(index);
         _hud.SetHotbar(_inventory);
+        SaveItems();
     }
 
     private void ResetMining()
@@ -251,6 +313,8 @@ public partial class Main : Node3D
             size.Y = .525f;
             position.Y += state.Upper ? .25f : -.25f;
         }
+        else if (state.Type is BlockType.Plant or BlockType.Flower)
+            size = new Vector3(.38f, .65f, .38f);
         else if (state.Type == BlockType.Door)
         {
             position.Y += state.Upper ? -.5f : .5f;
@@ -283,8 +347,14 @@ public partial class Main : Node3D
 
     private void SpawnDrop(BlockType type, Vector3 position)
     {
+        SpawnItem(ItemCatalog.ForBlock(type), 1, position);
+    }
+
+    private void SpawnItem(string id, int count, Vector3 position)
+    {
         var drop = new DroppedBlock { Position = position, ProcessMode = ProcessModeEnum.Pausable };
-        drop.Setup(type, _world.MaterialFor(type));
+        var block = ItemCatalog.BlockOf(id);
+        drop.Setup(id, count, _world.MaterialFor(block == BlockType.Air ? BlockType.Stone : block));
         AddChild(drop);
         drop.ApplyCentralImpulse(new Vector3(.4f, 1.5f, -.3f));
         _drops.Add(drop);
@@ -297,12 +367,14 @@ public partial class Main : Node3D
             var drop = _drops[i];
             if (!GodotObject.IsInstanceValid(drop) || drop.IsQueuedForDeletion()) { _drops.RemoveAt(i); continue; }
             if (drop.Age < .4 || drop.GlobalPosition.DistanceTo(_player.GlobalPosition + Vector3.Up) > 1.7f) continue;
-            _inventory.Add(drop.Type);
+            var remaining = _inventory.Slots.Add(drop.ItemId, drop.Count);
+            if (remaining > 0) { if (remaining < drop.Count) { drop.SetCount(remaining); SaveItems(); } continue; }
             _hud.SetHotbar(_inventory);
-            _hud.ShowPickup($"Collected {drop.Type}");
+            _hud.ShowPickup($"Collected {ItemCatalog.Get(drop.ItemId).Name}");
             _pickupNotice = 1.5;
             drop.QueueFree();
             _drops.RemoveAt(i);
+            SaveItems();
         }
     }
 
@@ -321,7 +393,62 @@ public partial class Main : Node3D
         GetTree().Paused = paused;
         Input.MouseMode = paused ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
         _hud.ShowPause(paused);
+        if (paused) SaveItems();
     }
+
+    public override void _Process(double delta)
+    {
+        if (_paused) return;
+        var active = false;
+        foreach (var furnace in _worldItems.Furnaces.Values)
+        {
+            var before = furnace.Progress;
+            furnace.Tick((float)delta);
+            if (furnace.Progress != before) active = true;
+        }
+        _saveClock += delta;
+        if (active && _saveClock >= 1) { _saveClock = 0; SaveItems(); }
+    }
+
+    private double _saveClock;
+    private bool _itemsWritable = true;
+    public void OpenInventory(InventoryMode mode, CellKey cell = default)
+    {
+        if (_paused) return;
+        _mineHeld = false; ResetMining();
+        _inventoryPanel.Open(mode, cell);
+        _player.ProcessMode = ProcessModeEnum.Disabled;
+        Input.MouseMode = Input.MouseModeEnum.Visible;
+    }
+    public void CloseInventory()
+    {
+        _player.ProcessMode = ProcessModeEnum.Pausable;
+        Input.MouseMode = Input.MouseModeEnum.Captured;
+        _hud.SetHotbar(_inventory);
+        SaveItems();
+    }
+    private void ReleaseContainer(CellKey cell, BlockType type)
+    {
+        InventoryGrid? grid = null;
+        if (type == BlockType.Chest && _worldItems.Chests.Remove(cell, out var chest)) grid = chest;
+        if (type == BlockType.CraftingStation && _worldItems.Stations.Remove(cell, out var station)) grid = station;
+        if (type == BlockType.Furnace && _worldItems.Furnaces.Remove(cell, out var furnace)) grid = furnace.Slots;
+        if (grid == null) return;
+        foreach (var stack in grid.Snapshot()) if (!stack.IsEmpty) SpawnItem(stack.Id, stack.Count, new Vector3(cell.X, cell.Y + 1, cell.Z));
+    }
+    private string ItemSavePath() => ProjectSettings.GlobalizePath($"user://items_{_world.Seed}.json");
+    private void LoadItems()
+    {
+        try { _worldItems.Load(ItemSavePath(), _inventory); _itemsWritable = true; }
+        catch (Exception error) { GD.PushError($"Could not load inventory: {error}"); _inventory.Reset(); _worldItems.Clear(); _itemsWritable = false; }
+    }
+    private void SaveItems()
+    {
+        if (!_itemsWritable) return;
+        try { _worldItems.Save(ItemSavePath(), _inventory); }
+        catch (Exception error) { GD.PushError($"Could not save inventory: {error}"); }
+    }
+    public override void _ExitTree() { if (_world != null) SaveItems(); }
 
     private static void RegisterControls()
     {

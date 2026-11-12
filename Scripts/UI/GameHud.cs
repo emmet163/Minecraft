@@ -1,5 +1,6 @@
 using Godot;
 using Stonewake.Player;
+using Stonewake.Items;
 using Stonewake.World;
 
 namespace Stonewake.UI;
@@ -61,7 +62,8 @@ public partial class GameHud : CanvasLayer
         {
             var back = new ColorRect { CustomMinimumSize = new Vector2(94, 64), Color = new Color(.09f, .12f, .16f, .82f) };
             hotbar.AddChild(back);
-            var label = new Label { Position = new Vector2(5, 5), Size = new Vector2(84, 54), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var label = new Label { Position = new Vector2(5, 5), Size = new Vector2(84, 54), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, ClipText = true };
+            label.AddThemeFontSizeOverride("font_size", 12);
             back.AddChild(label);
             _hotbarBacks[i] = back;
             _hotbarLabels[i] = label;
@@ -130,7 +132,7 @@ public partial class GameHud : CanvasLayer
         stack.AddChild(apply);
         _settingsError = new Label { Text = "", HorizontalAlignment = HorizontalAlignment.Center };
         stack.AddChild(_settingsError);
-        stack.AddChild(new Label { Text = "WASD move · Space jump · Shift sprint\nCtrl crouch · Q tool · 1–9 slots · Wheel select\nLeft mine · Right place/use · Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
+        stack.AddChild(new Label { Text = "WASD move · Space jump · Shift sprint\nCtrl crouch · Q tool · 1–9 slots · Wheel select\nE inventory · Left mine · Right place/use · Esc pause", HorizontalAlignment = HorizontalAlignment.Center });
         var resume = new Button { Text = "Resume" };
         resume.Pressed += () => ((Stonewake.Game.Main)GetParent()).SetPaused(false);
         stack.AddChild(resume);
@@ -159,8 +161,10 @@ public partial class GameHud : CanvasLayer
     {
         for (var i = 0; i < 9; i++)
         {
-            var type = inventory.Slot(i);
-            _hotbarLabels[i].Text = $"{i + 1}\n{type}  {inventory.Count(type)}";
+            var stack = inventory.Slots[i];
+            var name = stack.IsEmpty ? "·" : ItemCatalog.Get(stack.Id).Name;
+            if (name.Length > 11) name = name[..11];
+            _hotbarLabels[i].Text = stack.IsEmpty ? $"{i + 1}\n·" : $"{i + 1}\n{name}\n{stack.Count}";
             _hotbarBacks[i].Color = i == inventory.Selected
                 ? new Color(.66f, .71f, .48f, .95f) : new Color(.09f, .12f, .16f, .82f);
         }

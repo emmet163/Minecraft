@@ -37,7 +37,7 @@ public partial class VoxelWorld : Node3D
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Pausable;
-        for (var i = 1; i <= (int)BlockType.Fence; i++)
+        for (var i = 1; i <= (int)BlockType.Chest; i++)
             _materials[(BlockType)i] = BlockPalette.Create((BlockType)i);
     }
 

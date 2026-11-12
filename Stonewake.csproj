@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Tests/**/*.cs" />
+    <EmbeddedResource Include="Data/*.json" />
   </ItemGroup>
 </Project>

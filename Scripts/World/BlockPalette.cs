@@ -32,6 +32,9 @@ public static class BlockPalette
             BlockType.Stairs => new Color(0.48f, 0.34f, 0.21f),
             BlockType.Door => new Color(0.52f, 0.32f, 0.17f),
             BlockType.Fence => new Color(0.49f, 0.32f, 0.19f),
+            BlockType.CraftingStation => new Color(0.56f, 0.38f, 0.20f),
+            BlockType.Furnace => new Color(0.36f, 0.38f, 0.40f),
+            BlockType.Chest => new Color(0.62f, 0.39f, 0.17f),
             _ => new Color(1f, 0f, 1f)
         };
 

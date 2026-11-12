@@ -1,11 +1,11 @@
-# Known issues and limits — Phase 3
+# Known issues and limits — Phase 4
 
-- **Water remains visual:** There is no buoyancy or swimming; the player can fall through deep water.
-- **Crouch clearance:** Releasing crouch expands the collider without checking an overhead ceiling.
-- **Biome edges:** Elevation is continuous, but surface block types can switch visibly at climate thresholds.
-- **Finite vertical world:** Chunks cover levels 0–95. Terrain is clamped beneath the top.
-- **Meshing and edit cost:** Hidden faces are culled, but quads are not greedily merged. A block edit rebuilds its chunk and any affected neighbor; long sessions with many edits have not been profiled.
-- **Hotbar inventory:** Nine building types are selectable. Other collected block types are counted internally but cannot be equipped yet. Hotbar counts and tool choice are not persisted; block changes are.
-- **Shape detail:** Doors have a simple two-cell open/closed shape; fences connect to adjacent solid blocks. The selection outline for stairs and fences shows the full cell bounds. Hinge side, stair corner shapes, and other variants are not implemented.
-- **Interaction validation:** Headless probes call the same mining and placement methods used by input handling, but physical mouse clicks and the audible result of generated sounds were not tested by a person.
-- **Audio and particles:** Sounds are generated PCM cues and particles are small transient cubes; quality and appearance need interactive review.
+- **Inventory input verification:** Stack split, merge, swap, and transfer logic passed automated tests. Physical mouse click-and-drag and mouse recapture after closing the interface were not verified in a human play session.
+- **Equipment use:** Equipped pickaxes and shovels improve mining and lose durability. Weapons and armor have tiers, durability, slots, recipes, and tooltips, but there is no combat or player-damage system for them to affect yet. Bandages and campfire kits are craftable supplies without use actions.
+- **Dropped items:** Item drops are transient scene objects and are not saved. Removing a chest or furnace spills its contents into the world; quitting before collecting those drops loses them.
+- **Save consistency:** Block edits and inventory/container data use separate per-seed files. Each file is replaced atomically, but an interruption between the two writes can leave a block and its stored contents out of sync. A corrupt inventory file is preserved and disables inventory writes for that loaded world.
+- **Water:** Water has no swimming or buoyancy physics.
+- **Crouch clearance:** Releasing crouch does not check for an overhead ceiling before expanding the collider.
+- **World bounds and visuals:** Chunks cover vertical levels 0–95. Surface types can switch visibly at climate thresholds. Stair/fence selection outlines show cell bounds rather than exact geometry.
+- **Performance:** Chunk quads are not greedily merged. Large inventories with many active furnaces and long play sessions have not been profiled for native-memory growth or save latency.
+- **UI scale:** The 1280×720 inventory frame was inspected. Other resolutions and input devices were not visually tested.

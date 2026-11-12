@@ -11,5 +11,8 @@
     <Compile Include="../Scripts/World/BlockRules.cs" Link="BlockRules.cs" />
     <Compile Include="../Scripts/World/WorldEdits.cs" Link="WorldEdits.cs" />
     <Compile Include="../Scripts/World/WorldGenerator.cs" Link="WorldGenerator.cs" />
+    <Compile Include="../Scripts/Items/*.cs" Link="Items/%(Filename)%(Extension)" />
+    <Compile Include="../Scripts/Player/HotbarInventory.cs" Link="HotbarInventory.cs" />
+    <EmbeddedResource Include="../Data/*.json" Link="Data/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
