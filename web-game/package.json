@@ -1,6 +1,6 @@
 {
   "name": "stonewake-web",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "test:integration": "node tests/integration.mjs",
     "test:stations": "node tests/stations.mjs",
     "test:creatures": "node tests/creatures.mjs",
+    "test:exploration": "node tests/exploration.mjs",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {

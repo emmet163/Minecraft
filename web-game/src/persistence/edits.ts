@@ -1,13 +1,16 @@
 import { type BlockState } from '../world/blocks';
 import type {ItemsSave} from '../items/items';
 import type {LifeSave,CycleSave} from '../survival/state';
+import type {ExplorationSave} from '../exploration/state';
+import type {VillageSave} from '../villages/trades';
 
 export interface Edit { x: number; y: number; z: number; state: BlockState }
 export interface EditStore {
   load(seed: number): Promise<Edit[]>;
   putMany(seed: number, edits: Edit[]): Promise<void>;
 }
-export interface GameSave {version:1;position:[number,number,number];yaw:number;pitch:number;items:ItemsSave;life:LifeSave;cycle:CycleSave}
+export interface GameSave {version:1;position:[number,number,number];yaw:number;pitch:number;items:ItemsSave;life:LifeSave;cycle:CycleSave;
+  exploration?:ExplorationSave;villages?:VillageSave}
 export class MemoryEditStore implements EditStore {
   private data=new Map<string,Edit>();
   async load(seed: number): Promise<Edit[]> {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import './ui/phase7.css';
 import {Block,blockNames,dropType,isReplaceable,isSolid,state} from './world/blocks';
 import {VoxelWorld} from './world/world';
 import {IndexedDbEditStore,type GameSave} from './persistence/edits';
@@ -15,6 +16,11 @@ import {SurvivalState,WorldCycle,type Mode} from './survival/state';
 import {Biome} from './world/generator';
 import {CreatureSystem,type Creature} from './creatures/system';
 import {absorbCreatureDamage,meleeDamage,wearWeapon} from './combat/rules';
+import {lootFor} from './exploration/loot';
+import {ExplorationState} from './exploration/state';
+import {NavigationView} from './ui/navigation';
+import {VillageLedger} from './villages/trades';
+import {TradeView} from './ui/trade';
 
 type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number};
 const settingsKey='stonewake-web-settings';
@@ -22,6 +28,8 @@ const cellKey=(x:number,y:number,z:number)=>`${x},${y},${z}`;
 class Game{
   readonly items=new GameItems();readonly life=new SurvivalState();readonly cycle=new WorldCycle();
   readonly hud=new Hud(this.items);readonly inventory=new InventoryView(this.hud.root,this.items,this.life);
+  readonly exploration=new ExplorationState();readonly navigation=new NavigationView(this.hud.root,this.items,this.exploration);
+  readonly villages=new VillageLedger();readonly trade=new TradeView(this.hud.root,this.items,this.villages,()=>this.cycle.day);
   readonly scene=new THREE.Scene();readonly renderer=new THREE.WebGLRenderer({canvas:this.hud.canvas,antialias:true});
   readonly store=new IndexedDbEditStore();readonly world=new VoxelWorld(this.store);readonly player=new PlayerController(this.world);
   readonly creatures=new CreatureSystem(this.world);
@@ -31,12 +39,14 @@ class Game{
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
   paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
-  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;
+  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
     this.scene.add(this.ambient,this.sun,this.moon,this.world.group,this.player.object,this.outline,this.weather.group,this.creatures.group);this.outline.visible=false;
-    this.creatures.onDeath=creature=>{const def=creature.def;this.spawnItem(stack(def.drop,def.dropCount),creature.position.clone().add(new THREE.Vector3(0,.5,0)));
+    this.creatures.onDeath=creature=>{if(creature.inhabitant){this.villages.deceased.add(creature.inhabitant.key);this.hud.showNotice(`${creature.def.name} has fallen`);void this.saveNow();return;}
+      if(creature.dungeonKey)this.exploration.defeated.add(creature.dungeonKey);
+      const def=creature.def;this.spawnItem(stack(def.drop,def.dropCount),creature.position.clone().add(new THREE.Vector3(0,.5,0)));
       const rewarded=this.life.mode==='survival';if(rewarded)this.life.experience+=def.experience;
       this.hud.showNotice(`${def.name} defeated${rewarded?` · +${def.experience} XP`:''}`);void this.saveNow();};
     this.creatures.onPlayerHit=(damage,from)=>{if(this.life.mode!=='survival'||this.life.dead)return;
@@ -51,19 +61,23 @@ class Game{
     this.inventory.onChange=()=>{this.hud.renderHotbar(this.life);void this.saveNow();};
     this.inventory.onCraft=recipe=>{if(this.life.mode==='survival')this.life.experience+=Math.max(1,recipe.count);};
     this.inventory.onDrop=value=>this.spawnItem(value,this.player.position.clone().add(new THREE.Vector3(0,1,0)));
+    this.trade.onClose=()=>{void this.saveNow();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
+    this.trade.onChange=()=>{this.hud.renderHotbar(this.life);void this.saveNow();};
+    this.navigation.onClose=()=>{void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
+    this.navigation.onTrack=()=>void this.saveNow();
     this.hud.canvas.addEventListener('click',()=>{if(this.paused&&!this.life.dead)void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));});
     document.addEventListener('pointerlockchange',()=>{
-      if(this.inventory.open)return;
+      if(this.inventory.open||this.trade.open||this.navigation.open)return;
       this.setPaused(document.pointerLockElement!==this.hud.canvas);
     });
-    document.addEventListener('mousemove',event=>{if(!this.paused&&!this.inventory.open&&!this.life.dead)this.player.look(event.movementX,event.movementY);});
+    document.addEventListener('mousemove',event=>{if(!this.paused&&!this.inventory.open&&!this.trade.open&&!this.navigation.open&&!this.life.dead)this.player.look(event.movementX,event.movementY);});
     document.addEventListener('keydown',event=>this.keyDown(event));
     document.addEventListener('keyup',event=>this.player.keys.delete(event.code));
     window.addEventListener('blur',()=>{this.player.keys.clear();this.leftHeld=false;void this.saveNow();});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)void this.saveNow();});
     this.hud.canvas.addEventListener('mousedown',event=>this.mouseDown(event));
     document.addEventListener('mouseup',event=>{if(event.button===0)this.leftHeld=false;});
-    this.hud.canvas.addEventListener('wheel',event=>{event.preventDefault();if(!this.paused&&!this.inventory.open){this.hud.select(this.items.selected+(event.deltaY>0?1:-1));void this.saveNow();}},{passive:false});
+    this.hud.canvas.addEventListener('wheel',event=>{event.preventDefault();if(!this.paused&&!this.inventory.open&&!this.trade.open&&!this.navigation.open){this.hud.select(this.items.selected+(event.deltaY>0?1:-1));void this.saveNow();}},{passive:false});
     this.hud.canvas.addEventListener('contextmenu',event=>event.preventDefault());
     this.world.onError=message=>this.hud.showNotice(message);this.store.onFailure=message=>this.hud.showNotice(message);
     this.player.onLand=distance=>{if(distance>4)this.takeDamage((distance-3)*1.5);};
@@ -72,22 +86,34 @@ class Game{
   private setPaused(value:boolean){this.paused=value;this.hud.setPaused(value&&!this.life.dead);this.leftHeld=false;this.miningTime=0;this.miningKey='';this.hud.setProgress(0);if(value){this.player.keys.clear();void this.saveNow();}}
   private keyDown(event:KeyboardEvent){
     if(this.life.dead){if(event.code==='KeyR')this.respawn();return;}
+    if(this.trade.open){if(event.code==='KeyE'||event.code==='Escape')this.trade.close();return;}
+    if(this.navigation.open){if(event.code==='KeyM'||event.code==='Escape')this.navigation.close();return;}
     if(this.inventory.open){if(event.code==='KeyE'||event.code==='Escape')this.inventory.close();return;}
     if(event.code==='Escape'){if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();return;}
     if(this.paused)return;
     if(event.code==='KeyE'){this.openInventory('personal');return;}
+    if(event.code==='KeyM'){this.openMap();return;}
     if(event.code==='KeyF'){this.useSelected();return;}
     if(event.code.startsWith('Digit')){const n=Number(event.code.slice(5));if(n>=1&&n<=9){this.hud.select(n-1);void this.saveNow();}}
     else if(event.code==='KeyQ'){this.hud.cycleTool();void this.saveNow();}
     else this.player.keys.add(event.code);
     if(['Space','ArrowUp','ArrowDown'].includes(event.code))event.preventDefault();
   }
-  private mouseDown(event:MouseEvent){if(this.paused||this.inventory.open||this.life.dead)return;if(event.button===0)this.leftHeld=true;if(event.button===2)void this.place();}
+  private mouseDown(event:MouseEvent){if(this.paused||this.inventory.open||this.trade.open||this.navigation.open||this.life.dead)return;if(event.button===0)this.leftHeld=true;if(event.button===2)void this.place();}
+  private seedChestLoot(key:string){if(this.items.chests.has(key)||this.items.generatedLoot.has(key))return;
+    const [x,y,z]=key.split(',').map(Number),site=this.world.generator.structures.lootSite(x!,y!,z!);
+    if(!site)return;this.items.chest(key).load(lootFor(site,this.world.seed));this.items.generatedLoot.add(key);void this.saveNow();
+  }
   private openInventory(mode:InventoryMode,cell=''){
+    if(mode==='chest')this.seedChestLoot(cell);
     this.leftHeld=false;this.inventory.openPanel(mode,cell);this.hud.setPaused(false);
     if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();
   }
-  private snapshot():GameSave{return {version:1,position:this.player.position.toArray() as [number,number,number],yaw:this.player.yaw,pitch:this.player.pitch,items:this.items.snapshot(),life:this.life.snapshot(),cycle:this.cycle.snapshot()};}
+  private openMap(){this.leftHeld=false;this.player.keys.clear();this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);
+    this.navigation.openPanel();if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();}
+  private openTrade(creature:Creature){this.leftHeld=false;this.player.keys.clear();this.trade.openPanel(creature);
+    if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();}
+  private snapshot():GameSave{return {version:1,position:this.player.position.toArray() as [number,number,number],yaw:this.player.yaw,pitch:this.player.pitch,items:this.items.snapshot(),life:this.life.snapshot(),cycle:this.cycle.snapshot(),exploration:this.exploration.snapshot(),villages:this.villages.snapshot()};}
   private saveNow():Promise<void>{
     if(!this.loaded||this.saveBlocked)return this.saveQueue;
     const seed=this.world.seed,save=this.snapshot();
@@ -107,13 +133,15 @@ class Game{
     await this.world.configure(seed,distance,position?.[0]??0,position?.[2]??0);
     const spawn=position?new THREE.Vector3(...position):this.world.spawn();
     if(!this.world.isLoaded(Math.round(spawn.x),Math.round(spawn.z)))await this.world.configure(seed,distance,spawn.x,spawn.z);
-    try{this.items.load(valid?saved!.items:undefined);this.life.load(valid?saved!.life:undefined);this.cycle.load(valid?saved!.cycle:undefined,seed);}
-    catch(error){this.saveBlocked=true;this.items.reset();this.life.load(undefined);this.cycle.configure(seed);this.hud.showNotice(`Save data could not be loaded; original preserved: ${String(error)}`);}
+    try{this.items.load(valid?saved!.items:undefined);this.life.load(valid?saved!.life:undefined);this.cycle.load(valid?saved!.cycle:undefined,seed);
+      this.exploration.load(valid?saved!.exploration:undefined);this.villages.load(valid?saved!.villages:undefined);}
+    catch(error){this.saveBlocked=true;this.items.reset();this.life.load(undefined);this.cycle.configure(seed);this.exploration.reset();this.villages.reset();this.hud.showNotice(`Save data could not be loaded; original preserved: ${String(error)}`);}
     this.player.position.copy(spawn);this.player.yaw=valid?saved!.yaw||0:0;this.player.pitch=valid?saved!.pitch||0:0;
     this.player.object.rotation.y=this.player.yaw;this.player.camera.rotation.x=this.player.pitch;this.player.setFlight(this.life.mode==='creative');
     this.creatures.configure(seed);this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);
     this.hud.setWorld(seed,this.world.generator.biomeAt(Math.round(spawn.x),Math.round(spawn.z)),this.world.loadedCount,this.world.pendingCount);
     this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);this.loaded=true;this.hud.showNotice(`World ${seed} ready`);
+    this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);
   }
   async start(){let settings={seed:12345,distance:2,sensitivity:.18};try{settings={...settings,...JSON.parse(localStorage.getItem(settingsKey)||'{}')};}catch{/* defaults */}
     this.hud.setSettings(settings.seed,settings.distance,settings.sensitivity);await this.changeSettings(settings.seed,settings.distance,settings.sensitivity);this.running=true;this.frame();}
@@ -124,6 +152,8 @@ class Game{
     if(slept){this.life.heal(6);this.life.eat(4,2);}this.hud.showNotice(slept?'Spawn set · morning has arrived':'Spawn set · sleep at night');void this.saveNow();}
   private takeDamage(amount:number){if(this.life.damage(amount)){this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
   private enterDeath(){this.leftHeld=false;this.player.velocity.set(0,0,0);if(this.inventory.open){this.inventory.open=false;this.inventory.overlay.classList.add('hidden');}
+    if(this.trade.open){this.trade.open=false;this.trade.overlay.classList.add('hidden');}
+    if(this.navigation.open){this.navigation.open=false;this.navigation.overlay.classList.add('hidden');}
     const position=this.player.position.clone().add(new THREE.Vector3(0,1,0));
     const dropGrid=(grid:{snapshot:()=>Stack[];load:(s:Stack[])=>void})=>{for(const value of grid.snapshot())if(!isEmpty(value))this.spawnItem(value,position);grid.load([]);};
     dropGrid(this.items.slots);dropGrid(this.items.equipment);dropGrid(this.items.personal);
@@ -139,7 +169,7 @@ class Game{
   }
   private updateTarget(){const origin=new THREE.Vector3(),direction=new THREE.Vector3();this.player.camera.getWorldPosition(origin);this.player.camera.getWorldDirection(direction);
     this.target=traceBlocks(this.world,origin,direction,6);this.creatureTarget=this.creatures.target(origin,direction,Math.min(4.5,this.target?.distance??4.5));
-    if(this.creatureTarget){const c=this.creatureTarget;this.target=null;this.hud.setTarget(`${c.def.name} · ${Math.ceil(c.health)}/${c.def.health} HP · ${c.state}`);this.outline.visible=false;return;}
+    if(this.creatureTarget){const c=this.creatureTarget;this.target=null;this.hud.setTarget(`${c.inhabitant?`${c.inhabitant.occupation} · `:''}${c.def.name} · ${Math.ceil(c.health)}/${c.def.health} HP · ${c.state}${c.inhabitant?' · Right-click to trade':''}`);this.outline.visible=false;return;}
     if(!this.target){this.hud.setTarget('');this.outline.visible=false;return;}
     const {x,y,z,state:hitState}=this.target;this.hud.setTarget(`${blockNames[hitState.type]} · ${x}, ${y}, ${z}`);
     this.outline.position.set(x,y,z);this.outline.scale.set(1,1,1);
@@ -153,6 +183,7 @@ class Game{
     if(furnace){for(const s of furnace.slots.snapshot())if(!isEmpty(s))this.spawnItem(s,position);this.items.furnaces.delete(key);}
   }
   private async mine(){if(!this.target||this.editBusy)return;const {x,y,z,state:hitState}=this.target;this.editBusy=true;
+    if(hitState.type===Block.Chest)this.seedChestLoot(cellKey(x,y,z));
     const low=hitState.type===Block.Door&&(hitState.properties&4)?y-1:y;
     const changes=hitState.type===Block.Door?[{x,y:low,z,state:state(Block.Air)},{x,y:low+1,z,state:state(Block.Air)}]:[{x,y,z,state:state(Block.Air)}];
     const okay=await this.world.apply(changes);
@@ -165,7 +196,8 @@ class Game{
     if(this.creatures.hit(c,meleeDamage(this.items),this.player.position)){wearWeapon(this.items);this.hud.renderHotbar(this.life);
       if(c.alive)this.hud.showNotice(`Hit ${c.def.name} · ${Math.ceil(c.health)} HP`);void this.saveNow();}
   }
-  private async place(){if(!this.target||this.editBusy)return;const hit=this.target,{x,y,z}=hit,key=cellKey(x,y,z);
+  private async place(){if(this.creatureTarget?.inhabitant){this.openTrade(this.creatureTarget);return;}
+    if(!this.target||this.editBusy)return;const hit=this.target,{x,y,z}=hit,key=cellKey(x,y,z);
     if(hit.state.type===Block.Bed){this.sleepAt(x,y,z);return;}
     if(hit.state.type===Block.CraftingStation){this.openInventory('station',key);return;}
     if(hit.state.type===Block.Chest){this.openInventory('chest',key);return;}
@@ -215,7 +247,7 @@ class Game{
   private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.05);
     if(!this.paused){
       this.attackClock=Math.max(0,this.attackClock-delta);
-      if(!this.inventory.open&&!this.life.dead){this.player.update(delta);this.updateTarget();
+      if(!this.inventory.open&&!this.trade.open&&!this.navigation.open&&!this.life.dead){this.player.update(delta);this.updateTarget();
         const hit=this.target,k=hit?cellKey(hit.x,hit.y,hit.z):'';
         if(this.leftHeld&&this.creatureTarget){this.attackCreature();this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
         else if(this.leftHeld&&hit&&!this.editBusy){if(k!==this.miningKey){this.miningKey=k;this.miningTime=0;}this.miningTime+=delta;
@@ -227,12 +259,23 @@ class Game{
       this.world.update(this.player.position.x,this.player.position.z,delta);
       for(const furnace of this.items.furnaces.values())furnace.tick(delta);
       this.updateSurvival(delta);
-      this.creatures.update(delta,this.player.position,this.cycle.daylight,!this.life.dead&&this.life.mode==='survival');
+      this.villageClock+=delta;if(this.villageClock>=1.5){this.villageClock=0;
+        for(const site of this.world.generator.structures.nearby(this.player.position.x,this.player.position.z,42)){
+          this.creatures.ensureVillage(site,this.villages.deceased);
+          this.creatures.ensureDungeon(site,this.exploration.defeated);
+        }}
+      this.creatures.update(delta,this.player.position,this.cycle.daylight,!this.life.dead&&this.life.mode==='survival',this.cycle.hour);
+      this.navigationClock+=delta;if(this.navigationClock>=1){this.navigationClock=0;
+        const fresh=this.exploration.visit(this.world.generator.structures,this.player.position.x,this.player.position.z);
+        for(const site of fresh){if(this.life.mode==='survival')this.life.experience+=site.kind==='vault'?8:3;
+          this.hud.showNotice(`Discovered ${site.kind} · ${site.x}, ${site.z}`);void this.saveNow();}
+        this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);}
+      if(this.trade.open&&(!this.trade.creature?.alive||!this.creatures.creatures.includes(this.trade.creature)))this.trade.close();
       this.saveClock+=delta;if(this.saveClock>=5){this.saveClock=0;void this.saveNow();}
       if(this.inventory.open&&this.items.furnaces.size&&Math.floor(performance.now()/250)!==Math.floor((performance.now()-delta*1000)/250))this.inventory.render();
       const p=this.player.position;this.hud.setWorld(this.world.seed,this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z)),this.world.loadedCount,this.world.pendingCount);
     }
-    if(this.paused||this.inventory.open){this.idleRenderClock+=delta;if(this.idleRenderClock>=1){this.idleRenderClock=0;this.renderer.render(this.scene,this.player.camera);}}
+    if(this.paused||this.inventory.open||this.trade.open||this.navigation.open){this.idleRenderClock+=delta;if(this.idleRenderClock>=1){this.idleRenderClock=0;this.renderer.render(this.scene,this.player.camera);}}
     else {this.idleRenderClock=1;this.renderer.render(this.scene,this.player.camera);}
   };
 }

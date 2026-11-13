@@ -102,13 +102,14 @@ export class Furnace {
   load(value:{slots:Stack[];burn:number;progress:number}){this.slots.load(value.slots);this.burn=Math.max(0,value.burn||0);this.progress=Math.max(0,Math.min(60,value.progress||0));}
 }
 const starter=['dirt','stone','sand','gravel','glass','slab','stairs','door','fence'];
-export interface ItemsSave {slots:Stack[];equipment:Stack[];selected:number;tool:Tool;cursor:Stack;personal:Stack[];stations:[string,Stack[]][];chests:[string,Stack[]][];furnaces:[string,ReturnType<Furnace['snapshot']>][]}
+export interface ItemsSave {slots:Stack[];equipment:Stack[];selected:number;tool:Tool;cursor:Stack;personal:Stack[];stations:[string,Stack[]][];chests:[string,Stack[]][];furnaces:[string,ReturnType<Furnace['snapshot']>][];generatedLoot?:string[]}
 export class GameItems {
   slots=new InventoryGrid(36);equipment=new InventoryGrid(4);personal=new InventoryGrid(4);
   stations=new Map<string,InventoryGrid>();chests=new Map<string,InventoryGrid>();furnaces=new Map<string,Furnace>();
+  generatedLoot=new Set<string>();
   selected=0;tool:Tool='hand';cursor=empty();
   constructor(){this.reset();}
-  reset(){this.slots.load([]);this.equipment.load([]);this.personal.load([]);this.stations.clear();this.chests.clear();this.furnaces.clear();this.cursor=empty();this.selected=0;this.tool='hand';starter.forEach((id,i)=>this.slots.set(i,stack(id,32)));}
+  reset(){this.slots.load([]);this.equipment.load([]);this.personal.load([]);this.stations.clear();this.chests.clear();this.furnaces.clear();this.generatedLoot.clear();this.cursor=empty();this.selected=0;this.tool='hand';starter.forEach((id,i)=>this.slots.set(i,stack(id,32)));}
   select(i:number){this.selected=((i%9)+9)%9;}
   cycleTool(){this.tool=this.tool==='hand'?'pickaxe':this.tool==='pickaxe'?'shovel':'hand';}
   selectedStack(){return this.slots.get(this.selected);}
@@ -119,6 +120,6 @@ export class GameItems {
   station(key:string){if(!this.stations.has(key))this.stations.set(key,new InventoryGrid(9));return this.stations.get(key)!;}
   chest(key:string){if(!this.chests.has(key))this.chests.set(key,new InventoryGrid(27));return this.chests.get(key)!;}
   furnace(key:string){if(!this.furnaces.has(key))this.furnaces.set(key,new Furnace());return this.furnaces.get(key)!;}
-  snapshot():ItemsSave{return {slots:this.slots.snapshot(),equipment:this.equipment.snapshot(),selected:this.selected,tool:this.tool,cursor:clone(this.cursor),personal:this.personal.snapshot(),stations:[...this.stations].map(([k,v])=>[k,v.snapshot()]),chests:[...this.chests].map(([k,v])=>[k,v.snapshot()]),furnaces:[...this.furnaces].map(([k,v])=>[k,v.snapshot()])};}
-  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','shovel'].includes(save.tool)?save.tool:'hand';this.cursor=save.cursor&&catalog.has(save.cursor.id)?clone(save.cursor):empty();for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);}
+  snapshot():ItemsSave{return {slots:this.slots.snapshot(),equipment:this.equipment.snapshot(),selected:this.selected,tool:this.tool,cursor:clone(this.cursor),personal:this.personal.snapshot(),stations:[...this.stations].map(([k,v])=>[k,v.snapshot()]),chests:[...this.chests].map(([k,v])=>[k,v.snapshot()]),furnaces:[...this.furnaces].map(([k,v])=>[k,v.snapshot()]),generatedLoot:[...this.generatedLoot]};}
+  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','shovel'].includes(save.tool)?save.tool:'hand';this.cursor=save.cursor&&catalog.has(save.cursor.id)?clone(save.cursor):empty();for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);for(const key of save.generatedLoot||[])this.generatedLoot.add(key);}
 }

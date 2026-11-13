@@ -79,3 +79,39 @@ All failed checks were rerun after fixes. Following the last source change, stri
 ## Unverified
 
 Other browsers, touch controls, native GPU performance, sound quality, maximum render distance with creatures, long-session memory stability, complex maze navigation, and every biome's spawn balance were not verified. Creature state is transient across reload as documented in `KNOWN_ISSUES.md`. No deployment was performed.
+
+---
+
+# Phase 7 test report
+
+Date: 2026-11-12. Windows, Node.js 24.21.0, Vite 7.3.8, Vitest 4.1.12, headless Microsoft Edge using SwiftShader. Work was limited to `web-game/`. The unrelated untracked `preview-site/` was preserved. Starting Git checkpoint: `84951f6`.
+
+## Executed checks
+
+| Check | Result |
+| --- | --- |
+| Baseline before implementation | TypeScript, 19 Vitest tests, and production build passed; architecture and existing project reports inspected |
+| Final `npm run typecheck` | Passed with strict TypeScript settings |
+| Final `npm run test` | Passed: 27 tests in 5 files |
+| Final `npm run build` | Passed: worker and static assets emitted in `dist/` with relative paths |
+| `npm run test:browser` against Vite dev | Passed: WebGL, 25 chunks, movement, hotbar, mining, placement, edited terrain after reload and pause; no console/page errors |
+| `npm run test:integration` against Vite dev | Passed after making the mining wait event based: movement, jump, mining, crafting, equipment, damage, food, death, respawn, Creative flight and IndexedDB reload |
+| `npm run test:stations` against Vite dev | Passed: chest transfer/reload, furnace fuel and smelting, 3x3 crafting, bed sleep and persistence |
+| `npm run test:creatures` against Vite dev | Passed after stabilizing the target fixture: night spawning, combat, retaliation, armor, drops/XP, ranged damage and 24-creature cap |
+| `npm run test:exploration` against Vite dev | Passed: seeded village, discovery/map/compass, chest loot, inventory transfer, farmer trade, IndexedDB reload without loot duplication; no browser errors |
+| `npm run test:browser` against built preview | Passed: 25-chunk WebGL, interactions, edit reload and pause; no browser errors |
+| Vitest structure and exploration tests | Seed determinism, five structure kinds, biome rules, chunk seams, player-edit priority, chest materialization, loot persistence, trades, schedules, guards and discovery passed |
+| Visual check | Inspected 1280x720 village screenshot: houses, road, terrain and navigation HUD rendered |
+
+The final production build emitted 609.15 kB main JS (162.19 kB gzip), 5.97 kB CSS (1.95 kB gzip), and a 9.63 kB terrain worker. Vite's 500 kB JS chunk advisory remains. The 25-chunk headless Edge baseline measured 155.0 ms mean/466.6 ms maximum requestAnimationFrame interval and 22.8 MB JS heap in dev; built preview measured 172.0 ms mean/509.0 ms maximum and 21.4 MB heap. The creature regression measured 174.3 ms mean/374.9 ms maximum with one creature (18.1 MB heap), and 245.4 ms mean/499.2 ms maximum with 24 creatures (23.7 MB heap). These are short SwiftShader software-rendered observations, not native GPU rates or total browser memory. The 24-creature stress fixture cleared its render group after testing.
+
+## Bugs and fixes
+
+- Fixed strict tuple typing errors found during early TypeScript/build checks.
+- Updated the Phase 6 species count test for the new friendly Hearthfolk data.
+- Bounded the structure planner cache to 2,048 region entries so extended exploration does not retain every visited region.
+- Browser mining and creature regressions were intermittent under slow software rendering. The mining test now waits for the mined event. The creature test positions its target immediately before attacking and waits for actual damage/retaliation.
+
+## Limits of verification
+
+Long-session memory stability, native GPU frame rates, other browsers, mobile/touch input, and accessibility were not verified. Every structure kind's chest block and deterministic loot was unit tested, while the complete browser journey covered a village. Dungeon combat, mines, ruins and vaults were not manually played end to end. No deployment was performed.

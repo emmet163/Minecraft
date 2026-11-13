@@ -53,5 +53,9 @@
  {"id":"iron_helmet","name":"Iron Helmet","stack":1,"category":"armor","block":null,"durability":240,"tier":3,"speed":1,"fuelSeconds":0,"description":"Strong head protection."},
  {"id":"iron_chestplate","name":"Iron Chestplate","stack":1,"category":"armor","block":null,"durability":360,"tier":3,"speed":1,"fuelSeconds":0,"description":"Strong body protection."},
  {"id":"gold_helmet","name":"Gold Helmet","stack":1,"category":"armor","block":null,"durability":100,"tier":4,"speed":1,"fuelSeconds":0,"description":"Fine head protection."},
- {"id":"gold_chestplate","name":"Gold Chestplate","stack":1,"category":"armor","block":null,"durability":160,"tier":4,"speed":1,"fuelSeconds":0,"description":"Fine body protection."}
+ {"id":"gold_chestplate","name":"Gold Chestplate","stack":1,"category":"armor","block":null,"durability":160,"tier":4,"speed":1,"fuelSeconds":0,"description":"Fine body protection."},
+ {"id":"relic_shard","name":"Relic Shard","stack":16,"category":"treasure","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"A fragment recovered from an old landmark."},
+ {"id":"sunstone","name":"Sunstone","stack":8,"category":"treasure","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"A rare warm crystal found in ancient vaults."},
+ {"id":"survey_map","name":"Survey Map","stack":1,"category":"navigation","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Reveals nearby undiscovered landmarks on the map."},
+ {"id":"wayfinder","name":"Wayfinder","stack":1,"category":"navigation","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Points toward a tracked or nearby landmark."}
 ]

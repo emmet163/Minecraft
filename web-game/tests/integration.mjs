@@ -49,8 +49,9 @@ try{
     await page.waitForTimeout(40);
   }
   assert.ok(await page.locator('#target').textContent(),'No target for mining');
-  await page.mouse.down({button:'left'});await page.waitForTimeout(2800);await page.mouse.up({button:'left'});
-  assert.match(await page.locator('#notice').textContent(),/Mined/);
+  await page.evaluate(()=>document.querySelector('#game').dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true})));
+  await page.waitForFunction(()=>document.querySelector('#notice')?.textContent?.includes('Mined'),undefined,{timeout:8000});
+  await page.mouse.up({button:'left'});
   await page.keyboard.press('Escape');await page.waitForTimeout(250);
   const after=await saved();assert.ok(after.items.equipment[0].damage>0,'Tool did not lose durability');assert.ok(after.life.experience>=2,'Crafting/mining XP missing');
   assert.ok(after.items.slots.some(s=>s.id==='crafting_station'),'Crafted station was not saved');

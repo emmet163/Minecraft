@@ -1,0 +1,14 @@
+{
+  "farmer":[
+    {"give":"berries","giveCount":4,"receive":"plant","receiveCount":8,"limit":4},
+    {"give":"field_ration","giveCount":2,"receive":"relic_shard","receiveCount":1,"limit":2},
+    {"give":"bandage","giveCount":2,"receive":"copper_ingot","receiveCount":2,"limit":3}],
+  "mason":[
+    {"give":"stone","giveCount":12,"receive":"plank","receiveCount":6,"limit":5},
+    {"give":"iron_ingot","giveCount":2,"receive":"relic_shard","receiveCount":1,"limit":2},
+    {"give":"stone_pickaxe","giveCount":1,"receive":"copper_ingot","receiveCount":3,"limit":2}],
+  "cartographer":[
+    {"give":"survey_map","giveCount":1,"receive":"plant","receiveCount":6,"limit":3},
+    {"give":"wayfinder","giveCount":1,"receive":"iron_ingot","receiveCount":3,"limit":2},
+    {"give":"sunstone","giveCount":1,"receive":"relic_shard","receiveCount":5,"limit":1}]
+}

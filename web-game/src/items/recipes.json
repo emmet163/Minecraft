@@ -34,5 +34,7 @@
  {"id":"iron_helmet","kind":"shaped","width":3,"inputs":["iron_ingot","iron_ingot","iron_ingot","iron_ingot","","iron_ingot","","",""],"output":"iron_helmet","count":1,"station":true},
  {"id":"iron_chestplate","kind":"shaped","width":3,"inputs":["iron_ingot","","iron_ingot","iron_ingot","iron_ingot","iron_ingot","iron_ingot","iron_ingot","iron_ingot"],"output":"iron_chestplate","count":1,"station":true},
  {"id":"gold_helmet","kind":"shaped","width":3,"inputs":["gold_ingot","gold_ingot","gold_ingot","gold_ingot","","gold_ingot","","",""],"output":"gold_helmet","count":1,"station":true},
- {"id":"gold_chestplate","kind":"shaped","width":3,"inputs":["gold_ingot","","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot"],"output":"gold_chestplate","count":1,"station":true}
+ {"id":"gold_chestplate","kind":"shaped","width":3,"inputs":["gold_ingot","","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot","gold_ingot"],"output":"gold_chestplate","count":1,"station":true},
+ {"id":"survey_map","kind":"shapeless","width":1,"inputs":["plant","plant","coal"],"output":"survey_map","count":1,"station":false},
+ {"id":"wayfinder","kind":"shaped","width":2,"inputs":["iron_ingot","stone","stone","iron_ingot"],"output":"wayfinder","count":1,"station":false}
 ]

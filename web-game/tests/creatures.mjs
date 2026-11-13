@@ -34,13 +34,19 @@ try{
   assert.ok(setup.id,`Could not place neutral creature: ${JSON.stringify(setup)}`);
   await page.waitForFunction(()=>document.querySelector('#target')?.textContent?.includes('Crag Guardian'),undefined,{timeout:5000});
   await mkdir('.artifacts',{recursive:true});await page.screenshot({path:'.artifacts/creature-combat.png'});
-  await page.mouse.down({button:'left'});await page.waitForTimeout(120);await page.mouse.up({button:'left'});
+  assert.equal(await gameValue("const c=game.creatures.creatures.find(c=>c.def.id==='crag_guardian');const p=game.player.position;c.position.set(p.x,p.y,p.z-1.6);c.velocityY=0;game.player.yaw=0;game.player.object.rotation.y=0;game.player.pitch=-.13;game.player.camera.rotation.x=-.13;game.updateTarget();return game.creatureTarget?.id;"),setup.id);
+  await page.evaluate(()=>document.querySelector('#game').dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true})));
+  await page.waitForFunction(()=>window.__stonewakeGame.creatures.creatures.find(c=>c.def.id==='crag_guardian')?.health<24,undefined,{timeout:5000});
+  await page.mouse.up({button:'left'});
   const provoked=await gameValue("const c=game.creatures.creatures.find(c=>c.def.id==='crag_guardian');return {health:c?.health,aggression:c?.aggression,weaponDamage:game.items.equipment.get(3).damage};");
   assert.ok(provoked.health<24&&provoked.aggression>0&&provoked.weaponDamage>0,`Neutral attack failed: ${JSON.stringify(provoked)}`);
-  await page.waitForTimeout(1900);
+  await gameValue("const c=game.creatures.creatures.find(c=>c.def.id==='crag_guardian');const p=game.player.position;c.position.set(p.x,p.y,p.z-1.3);c.aggression=8;return true;");
+  await page.waitForFunction(()=>window.__stonewakeGame.life.health<20,undefined,{timeout:8000});
   const retaliation=await gameValue("return {health:game.life.health,armorDamage:game.items.equipment.get(2).damage};");
   assert.ok(retaliation.health<20&&retaliation.armorDamage>0,`Armored retaliation failed: ${JSON.stringify(retaliation)}`);
-  await page.mouse.down({button:'left'});await page.waitForTimeout(2200);await page.mouse.up({button:'left'});
+  await page.evaluate(()=>document.querySelector('#game').dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true})));
+  await page.waitForFunction(id=>{const game=window.__stonewakeGame;return game.creatures.creatures.find(c=>c.id===id)?.health<=0||!game.creatures.creatures.some(c=>c.id===id);},setup.id,{timeout:8000});
+  await page.mouse.up({button:'left'});
   const defeated=await gameValue(`return {xp:game.life.experience,dropCount:game.drops.length,guardian:game.creatures.creatures.find(c=>c.id===${setup.id})?.health};`);
   assert.ok(defeated.xp>=5&&(defeated.guardian===undefined||defeated.guardian===0),`Creature death/rewards failed: ${JSON.stringify(defeated)}`);
 

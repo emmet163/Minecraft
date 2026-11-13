@@ -1,5 +1,6 @@
 import { Block, floorDiv } from './blocks';
 import { ChunkData, HEIGHT, SIZE } from './chunk';
+import {StructurePlanner} from './structures';
 
 export const enum Biome { Ocean, Beach, Plains, Forest, Desert, Mountains, Snow, Swamp }
 export const biomeNames = ['Ocean','Beach','Plains','Forest','Desert','Mountains','Snow','Swamp'] as const;
@@ -8,7 +9,8 @@ const lerp = (a: number,b: number,t: number) => a+(b-a)*t;
 const smooth = (a: number,b: number,x: number) => fade(Math.max(0,Math.min(1,(x-a)/(b-a))));
 export class WorldGenerator {
   static readonly seaLevel = 42;
-  constructor(readonly seed: number) {}
+  readonly structures:StructurePlanner;
+  constructor(readonly seed: number) {this.structures=new StructurePlanner(seed,this);}
   private hash(x: number,y: number,z: number,salt: number): number {
     let h = (this.seed ^ Math.imul(salt,0x9e3779b9)) >>> 0;
     h = (h ^ Math.imul(x,0x85ebca6b)) >>> 0; h = Math.imul(h ^ (h >>> 16),0xc2b2ae35) >>> 0;
@@ -87,6 +89,7 @@ export class WorldGenerator {
       }
     }
     this.addPlants(data);
+    this.structures.decorate(data);
     return data;
   }
   private addPlants(data: ChunkData): void {

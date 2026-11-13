@@ -3,9 +3,12 @@ import raw from './creatures.json';
 import {Block,cellOf,collisionBoxes,isSolid,type BlockState} from '../world/blocks';
 import {biomeNames,type Biome} from '../world/generator';
 import {traceBlocks} from '../world/raycast';
+import type {StructureSite,SitePoint} from '../world/structures';
 
-export type CreatureKind='peaceful'|'neutral'|'hostile';
+export type CreatureKind='peaceful'|'neutral'|'hostile'|'friendly';
 export type CreatureState='idle'|'wander'|'graze'|'chase'|'attack'|'flee';
+export type Occupation='farmer'|'mason'|'cartographer';
+export interface Inhabitant{key:string;occupation:Occupation;home:SitePoint;work:SitePoint;market:SitePoint}
 interface PartDef{size:[number,number,number];offset:[number,number,number];color:string;role?:'head'|'leg'}
 export interface CreatureDef{id:string;name:string;kind:CreatureKind;attackMode:'none'|'melee'|'ranged';biomes:string[];
   health:number;speed:number;damage:number;range:number;cooldown:number;experience:number;drop:string;dropCount:number;
@@ -19,6 +22,7 @@ export class Creature{
   health:number;state:CreatureState='idle';velocityY=0;grounded=false;knockX=0;knockZ=0;
   aggression=0;flee=0;attackClock=0;thinkClock=0;decisionClock=0;deadClock=0;hurtClock=0;age=0;phase=0;heading=0;
   avoidClock=0;avoidHeading=0;
+  inhabitant?:Inhabitant;tunic?:string;dungeonKey?:string;
   constructor(readonly id:number,readonly def:CreatureDef,geometry:THREE.BoxGeometry,material:(color:string)=>THREE.Material){
     this.health=def.health;
     for(const part of def.parts){const mesh=new THREE.Mesh(geometry,material(part.color));mesh.scale.set(...part.size);mesh.position.set(...part.offset);
@@ -48,6 +52,27 @@ export class CreatureSystem{
     const creature=new Creature(this.nextId++,def,this.box,color=>this.material(color));creature.position.set(x,y,z);
     creature.heading=this.random()*TWO_PI;creature.thinkClock=this.random()*.3;
     this.group.add(creature.group);this.creatures.push(creature);return creature;
+  }
+  ensureVillage(site:StructureSite,deceased:ReadonlySet<string>):void{
+    if(site.kind!=='village')return;
+    const jobs:Occupation[]=['farmer','mason','cartographer'];
+    for(let i=0;i<site.homes.length;i++){
+      const home=site.homes[i]!,key=`${site.id}:${i}`;
+      if(deceased.has(key)||this.creatures.some(c=>c.inhabitant?.key===key)||this.creatures.length>=this.maxPopulation)continue;
+      const porch={x:home.x,y:this.world.generator.surfaceHeight(home.x,home.z+5),z:home.z+5};
+      const c=this.spawnAt('hearthfolk',porch.x,porch.y+.51,porch.z);if(!c)continue;
+      c.inhabitant={key,occupation:jobs[i%jobs.length]!,home:porch,work:site.work,market:{x:site.x,y:site.y,z:site.z}};
+      c.tunic=['#7d9857','#8a7772','#637f9c'][i%3]!;
+    }
+  }
+  ensureDungeon(site:StructureSite,defeated:ReadonlySet<string>):void{
+    if(site.kind!=='dungeon')return;
+    for(let i=0;i<2;i++){
+      const key=`${site.id}:${i}`;
+      if(defeated.has(key)||this.creatures.some(c=>c.dungeonKey===key)||this.creatures.length>=this.maxPopulation)continue;
+      const c=this.spawnAt(i?'ember_spitter':'dusk_stalker',site.x+(i?3:-3),site.y-11.49,site.z+2);
+      if(c)c.dungeonKey=key;
+    }
   }
   private removeAt(index:number){const creature=this.creatures[index]!;this.group.remove(creature.group);this.creatures.splice(index,1);}
   private removeShot(index:number){const shot=this.projectiles[index]!;this.group.remove(shot.mesh);this.projectiles.splice(index,1);}
@@ -99,9 +124,14 @@ export class CreatureSystem{
     const mesh=new THREE.Mesh(this.shotBox,this.shotMaterial);mesh.position.copy(start);this.group.add(mesh);
     this.projectiles.push({mesh,vx:direction.x*9,vy:direction.y*9,vz:direction.z*9,age:0,damage:c.def.damage});
   }
-  private think(c:Creature,player:THREE.Vector3,playerVulnerable:boolean){const dx=player.x-c.position.x,dz=player.z-c.position.z,dist=Math.hypot(dx,dz);
+  private think(c:Creature,player:THREE.Vector3,playerVulnerable:boolean,hour:number){const dx=player.x-c.position.x,dz=player.z-c.position.z,dist=Math.hypot(dx,dz);
     const vertical=Math.abs(player.y-c.position.y),inReach=dist<=c.def.range&&vertical<(c.def.attackMode==='melee'?2:8);
-    if(c.def.kind==='peaceful'&&c.flee>0){c.state='flee';c.heading=Math.atan2(-dx,-dz);return;}
+    if((c.def.kind==='peaceful'||c.def.kind==='friendly')&&c.flee>0){c.state='flee';c.heading=Math.atan2(-dx,-dz);return;}
+    if(c.inhabitant){const waypoint=hour<6||hour>=20?c.inhabitant.home:hour<17?c.inhabitant.work:c.inhabitant.market;
+      const wx=waypoint.x-c.position.x,wz=waypoint.z-c.position.z;
+      c.state=Math.hypot(wx,wz)>1.3?'wander':hour>=6&&hour<17?'graze':'idle';
+      if(c.state==='wander')c.heading=Math.atan2(wx,wz);return;
+    }
     const aggressive=c.def.kind==='hostile'||c.def.kind==='neutral'&&c.aggression>0;
     if(aggressive&&playerVulnerable&&dist<16&&vertical<8){c.state=inReach&&this.canSee(c,player)?'attack':'chase';c.heading=Math.atan2(dx,dz);return;}
     if(c.state==='chase'||c.state==='attack'||c.state==='flee')c.state='idle';
@@ -112,7 +142,7 @@ export class CreatureSystem{
     const walking=c.state==='wander'||c.state==='chase'||c.state==='flee';
     for(let i=0;i<c.legs.length;i++)c.legs[i]!.rotation.x=walking?Math.sin(c.phase+i*Math.PI)*.45:0;
     for(const head of c.heads)head.rotation.x=c.state==='graze'?.35+Math.sin(c.age*2)*.1:c.state==='attack'?-.22:0;
-    for(let i=0;i<c.meshes.length;i++)c.meshes[i]!.material=c.hurtClock>0?this.hitMaterial:this.material(c.def.parts[i]!.color);
+    for(let i=0;i<c.meshes.length;i++)c.meshes[i]!.material=c.hurtClock>0?this.hitMaterial:this.material(i===0&&c.tunic?c.tunic:c.def.parts[i]!.color);
     c.group.rotation.y=c.heading;
   }
   private spawnNear(player:THREE.Vector3,daylight:number){if(this.creatures.length>=this.maxPopulation)return;
@@ -123,14 +153,14 @@ export class CreatureSystem{
       const biome=biomeNames[this.world.generator.biomeAt(x,z)],h=this.world.generator.surfaceHeight(x,z);
       if(h<44||h>91||!isSolid(this.world.get(x,h,z))||this.world.get(x,h+1,z)!==Block.Air||this.world.get(x,h+2,z)!==Block.Air)continue;
       let crowded=false;for(const other of this.creatures)if((other.position.x-x)**2+(other.position.z-z)**2<36){crowded=true;break;}if(crowded)continue;
-      const eligible=creatureDefs.filter(def=>def.biomes.includes(biome)&&
+      const eligible=creatureDefs.filter(def=>def.kind!=='friendly'&&def.biomes.includes(biome)&&
         (def.kind==='hostile'?daylight<.25:def.kind==='peaceful'?daylight>.15:true));
       if(!eligible.length)continue;const choice=eligible[Math.floor(this.random()*eligible.length)]!;
       if(choice.kind==='hostile'&&this.creatures.filter(c=>c.def.kind==='hostile').length>=10)continue;
       this.spawnAt(choice.id,x,h+.51,z);return;
     }
   }
-  update(delta:number,player:THREE.Vector3,daylight:number,playerVulnerable:boolean){delta=Math.min(delta,.05);
+  update(delta:number,player:THREE.Vector3,daylight:number,playerVulnerable:boolean,hour=12){delta=Math.min(delta,.05);
     this.spawnClock+=delta;if(this.spawnClock>=3.5){this.spawnClock=0;this.spawnNear(player,daylight);}
     for(let i=this.creatures.length-1;i>=0;i--){const c=this.creatures[i]!,distanceSq=c.position.distanceToSquared(player);
       if(distanceSq>this.despawnRadius**2||!this.world.isLoaded(c.position.x,c.position.z)){this.removeAt(i);continue;}
@@ -138,7 +168,7 @@ export class CreatureSystem{
       if(distanceSq>this.activeRadius**2)continue;
       c.aggression=Math.max(0,c.aggression-delta);c.flee=Math.max(0,c.flee-delta);c.attackClock=Math.max(0,c.attackClock-delta);
       c.decisionClock-=delta;c.thinkClock-=delta;
-      if(c.thinkClock<=0){c.thinkClock=distanceSq<144?.15:.45;this.think(c,player,playerVulnerable);}
+      if(c.thinkClock<=0){c.thinkClock=distanceSq<144?.15:.45;this.think(c,player,playerVulnerable,hour);}
       if(c.state==='wander'||c.state==='chase'||c.state==='flee')this.navigate(c,c.heading,delta);
       if(c.state==='attack'&&c.attackClock<=0&&playerVulnerable&&this.canSee(c,player)){
         c.attackClock=c.def.cooldown;c.hurtClock=.08;
@@ -178,7 +208,7 @@ export class CreatureSystem{
     if(!c.alive||damage<=0)return false;c.health=Math.max(0,c.health-damage);c.hurtClock=.22;
     const dx=c.position.x-source.x,dz=c.position.z-source.z,length=Math.hypot(dx,dz)||1;
     c.knockX=dx/length*4;c.knockZ=dz/length*4;c.velocityY=Math.max(c.velocityY,2.5);
-    if(c.def.kind==='peaceful'){c.flee=7;c.state='flee';}
+    if(c.def.kind==='peaceful'||c.def.kind==='friendly'){c.flee=7;c.state='flee';}
     if(c.def.kind==='neutral'){c.aggression=18;c.state='chase';}
     if(!c.alive){c.deadClock=.3;this.onDeath(c);}
     return true;
