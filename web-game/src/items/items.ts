@@ -3,7 +3,7 @@ import rawRecipes from './recipes.json';
 import rawSmelting from './smelting.json';
 import { Block, blockNames, miningSeconds, type Tool } from '../world/blocks';
 
-export interface ItemDef { id:string;name:string;stack:number;category:string;block:string|null;durability:number;tier:number;speed:number;fuelSeconds:number;description:string;nutrition?:number;saturationGain?:number;healing?:number }
+export interface ItemDef { id:string;name:string;stack:number;category:string;block:string|null;durability:number;tier:number;speed:number;fuelSeconds:number;description:string;nutrition?:number;saturationGain?:number;healing?:number;attack?:number }
 export interface Stack { id:string;count:number;damage:number }
 export const empty=():Stack=>({id:'',count:0,damage:0});
 export const stack=(id:string,count=1,damage=0):Stack=>count>0?{id,count,damage}:empty();

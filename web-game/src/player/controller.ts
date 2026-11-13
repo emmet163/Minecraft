@@ -7,6 +7,7 @@ export class PlayerController {
   readonly camera=new THREE.PerspectiveCamera(75,1,.05,700);
   readonly keys=new Set<string>();
   readonly velocity=new THREE.Vector3();
+  readonly knockback=new THREE.Vector3();
   sensitivity=.18;
   flying=false;
   onLand:(distance:number)=>void=()=>{};
@@ -23,7 +24,7 @@ export class PlayerController {
     this.pitch=Math.max(-Math.PI*.494,Math.min(Math.PI*.494,this.pitch-dy*this.sensitivity*.01));
     this.object.rotation.y=this.yaw; this.camera.rotation.x=this.pitch;
   }
-  setFlight(value:boolean){this.flying=value;this.airborne=false;this.velocity.set(0,0,0);}
+  setFlight(value:boolean){this.flying=value;this.airborne=false;this.velocity.set(0,0,0);this.knockback.set(0,0,0);}
   private collides(x:number,y:number,z:number,height:number): boolean {
     const radius=.34;
     for(let bz=cellOf(z-radius);bz<=cellOf(z+radius);bz++)
@@ -68,8 +69,9 @@ export class PlayerController {
     const right=(this.keys.has('KeyD')?1:0)-(this.keys.has('KeyA')?1:0);
     const length=Math.hypot(forward,right)||1;
     const speed=crouching?2.5:this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')?8:5;
-    this.velocity.x=(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*right)/length*speed;
-    this.velocity.z=(-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*right)/length*speed;
+    this.velocity.x=(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*right)/length*speed+this.knockback.x;
+    this.velocity.z=(-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*right)/length*speed+this.knockback.z;
+    this.knockback.multiplyScalar(Math.max(0,1-7*delta));
     const jump=this.keys.has('Space');
     if(jump && !this.jumpHeld && this.grounded) { this.velocity.y=7; this.grounded=false; }
     this.jumpHeld=jump;

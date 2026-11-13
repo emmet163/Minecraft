@@ -45,7 +45,7 @@ export class InventoryView{
     if(recipe){this.onCraft(recipe);this.onChange();this.render();}}
   private dropHeld(){if(isEmpty(this.items.cursor))return;this.onDrop(this.items.cursor);this.items.cursor=empty();this.onChange();this.render();}
   private slots(grid:InventoryGrid,group:string):string{
-    return grid.slots.map((s,i)=>`<button class="inv-slot" data-grid="${group}" data-index="${i}" title="${isEmpty(s)?'Empty':`${item(s.id).name} ×${s.count}\n${item(s.id).description}${item(s.id).durability?`\nDurability ${item(s.id).durability-s.damage}/${item(s.id).durability} · Tier ${item(s.id).tier}`:''}`}">
+    return grid.slots.map((s,i)=>`<button class="inv-slot" data-grid="${group}" data-index="${i}" title="${isEmpty(s)?'Empty':`${item(s.id).name} ×${s.count}\n${item(s.id).description}${item(s.id).attack?`\nAttack ${item(s.id).attack}`:''}${item(s.id).durability?`\nDurability ${item(s.id).durability-s.damage}/${item(s.id).durability} · Tier ${item(s.id).tier}`:''}`}">
       <b>${isEmpty(s)?'·':item(s.id).name}</b><em>${s.count||''}</em></button>`).join('');
   }
   private showRecipe(id:string){const recipe=recipes.find(value=>value.id===id);const label=this.overlay.querySelector('#recipe-details');if(!label||!recipe)return;

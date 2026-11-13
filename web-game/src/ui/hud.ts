@@ -49,8 +49,9 @@ export class Hud{
     this.root.querySelector('#hotbar')!.innerHTML=Array.from({length:9},(_,i)=>{
       const s=this.items.slots.get(i);return `<div class="slot ${i===this.items.selected?'selected':''}" title="${isEmpty(s)?'Empty':item(s.id).description}"><kbd>${i+1}</kbd><b>${isEmpty(s)?'Empty':item(s.id).name}</b><em>${s.count||''}</em></div>`;
     }).join('');
-    const selected=this.items.selectedStack();this.root.querySelector('#tool')!.textContent=creative?`CREATIVE · ${blockNames[life!.creativeBlock]} · Space/Ctrl fly`:
-      `${this.items.tool.toUpperCase()} · ${isEmpty(selected)?'Empty':item(selected.id).name}`;
+    const selected=this.items.selectedStack(),weapon=this.items.equipment.get(3);
+    this.root.querySelector('#tool')!.textContent=creative?`CREATIVE · ${blockNames[life!.creativeBlock]} · Space/Ctrl fly`:
+      `${this.items.tool.toUpperCase()} · ${isEmpty(selected)?'Empty':item(selected.id).name}${isEmpty(weapon)?'':` · ${item(weapon.id).name} ${item(weapon.id).attack??''} attack`}`;
   }
   setSurvival(life:SurvivalState,cycle:WorldCycle,snowing:boolean){
     const visible=life.mode==='survival';this.root.querySelector<HTMLElement>('#survival-bars')!.style.display=visible?'flex':'none';

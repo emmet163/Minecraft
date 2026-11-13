@@ -13,6 +13,8 @@ import {WeatherVisual} from './render/weather';
 import {GameItems,blockItem,isEmpty,item,stack,empty,type Stack} from './items/items';
 import {SurvivalState,WorldCycle,type Mode} from './survival/state';
 import {Biome} from './world/generator';
+import {CreatureSystem,type Creature} from './creatures/system';
+import {absorbCreatureDamage,meleeDamage,wearWeapon} from './combat/rules';
 
 type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number};
 const settingsKey='stonewake-web-settings';
@@ -22,17 +24,24 @@ class Game{
   readonly hud=new Hud(this.items);readonly inventory=new InventoryView(this.hud.root,this.items,this.life);
   readonly scene=new THREE.Scene();readonly renderer=new THREE.WebGLRenderer({canvas:this.hud.canvas,antialias:true});
   readonly store=new IndexedDbEditStore();readonly world=new VoxelWorld(this.store);readonly player=new PlayerController(this.world);
+  readonly creatures=new CreatureSystem(this.world);
   readonly clock=new THREE.Clock();readonly sounds=new BlockSounds();readonly weather=new WeatherVisual();
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
-  paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;
+  paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
   private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
-    this.scene.add(this.ambient,this.sun,this.moon,this.world.group,this.player.object,this.outline,this.weather.group);this.outline.visible=false;
+    this.scene.add(this.ambient,this.sun,this.moon,this.world.group,this.player.object,this.outline,this.weather.group,this.creatures.group);this.outline.visible=false;
+    this.creatures.onDeath=creature=>{const def=creature.def;this.spawnItem(stack(def.drop,def.dropCount),creature.position.clone().add(new THREE.Vector3(0,.5,0)));
+      const rewarded=this.life.mode==='survival';if(rewarded)this.life.experience+=def.experience;
+      this.hud.showNotice(`${def.name} defeated${rewarded?` · +${def.experience} XP`:''}`);void this.saveNow();};
+    this.creatures.onPlayerHit=(damage,from)=>{if(this.life.mode!=='survival'||this.life.dead)return;
+      const actual=absorbCreatureDamage(this.items,damage),dx=this.player.position.x-from.x,dz=this.player.position.z-from.z,length=Math.hypot(dx,dz)||1;
+      this.player.knockback.set(dx/length*4,0,dz/length*4);this.takeDamage(actual);this.hud.renderHotbar(this.life);};
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.resize();window.addEventListener('resize',()=>this.resize());
     this.hud.onResume=()=>{void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
@@ -102,7 +111,7 @@ class Game{
     catch(error){this.saveBlocked=true;this.items.reset();this.life.load(undefined);this.cycle.configure(seed);this.hud.showNotice(`Save data could not be loaded; original preserved: ${String(error)}`);}
     this.player.position.copy(spawn);this.player.yaw=valid?saved!.yaw||0:0;this.player.pitch=valid?saved!.pitch||0:0;
     this.player.object.rotation.y=this.player.yaw;this.player.camera.rotation.x=this.player.pitch;this.player.setFlight(this.life.mode==='creative');
-    this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);
+    this.creatures.configure(seed);this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);
     this.hud.setWorld(seed,this.world.generator.biomeAt(Math.round(spawn.x),Math.round(spawn.z)),this.world.loadedCount,this.world.pendingCount);
     this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);this.loaded=true;this.hud.showNotice(`World ${seed} ready`);
   }
@@ -110,10 +119,10 @@ class Game{
     this.hud.setSettings(settings.seed,settings.distance,settings.sensitivity);await this.changeSettings(settings.seed,settings.distance,settings.sensitivity);this.running=true;this.frame();}
   private setMode(mode:Mode){if(this.life.dead)return;this.life.setMode(mode);this.player.setFlight(mode==='creative');this.hud.setMode(mode);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);void this.saveNow();}
   private useSelected(){if(this.life.mode==='creative'||this.life.dead)return;const held=this.items.selectedStack();if(isEmpty(held))return;
-    const def=item(held.id);if(this.life.eat(def.nutrition||0,def.saturationGain||0,def.healing||0)){this.items.spendSelected();this.hud.renderHotbar(this.life);void this.saveNow();}}
+    const def=item(held.id);if(this.life.eat(def.nutrition||0,def.saturationGain||0,def.healing||0)){this.items.spendSelected();this.hud.renderHotbar(this.life);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());void this.saveNow();}}
   private sleepAt(x:number,y:number,z:number){if(this.world.get(x,y,z)!==Block.Bed)return;this.life.bed={x,y,z};const slept=this.cycle.sleep();
     if(slept){this.life.heal(6);this.life.eat(4,2);}this.hud.showNotice(slept?'Spawn set · morning has arrived':'Spawn set · sleep at night');void this.saveNow();}
-  private takeDamage(amount:number){if(this.life.damage(amount)){if(this.life.dead)this.enterDeath();else void this.saveNow();}}
+  private takeDamage(amount:number){if(this.life.damage(amount)){this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
   private enterDeath(){this.leftHeld=false;this.player.velocity.set(0,0,0);if(this.inventory.open){this.inventory.open=false;this.inventory.overlay.classList.add('hidden');}
     const position=this.player.position.clone().add(new THREE.Vector3(0,1,0));
     const dropGrid=(grid:{snapshot:()=>Stack[];load:(s:Stack[])=>void})=>{for(const value of grid.snapshot())if(!isEmpty(value))this.spawnItem(value,position);grid.load([]);};
@@ -129,7 +138,8 @@ class Game{
     void this.saveNow();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));
   }
   private updateTarget(){const origin=new THREE.Vector3(),direction=new THREE.Vector3();this.player.camera.getWorldPosition(origin);this.player.camera.getWorldDirection(direction);
-    this.target=traceBlocks(this.world,origin,direction,6);
+    this.target=traceBlocks(this.world,origin,direction,6);this.creatureTarget=this.creatures.target(origin,direction,Math.min(4.5,this.target?.distance??4.5));
+    if(this.creatureTarget){const c=this.creatureTarget;this.target=null;this.hud.setTarget(`${c.def.name} · ${Math.ceil(c.health)}/${c.def.health} HP · ${c.state}`);this.outline.visible=false;return;}
     if(!this.target){this.hud.setTarget('');this.outline.visible=false;return;}
     const {x,y,z,state:hitState}=this.target;this.hud.setTarget(`${blockNames[hitState.type]} · ${x}, ${y}, ${z}`);
     this.outline.position.set(x,y,z);this.outline.scale.set(1,1,1);
@@ -150,6 +160,10 @@ class Game{
       this.life.experience+=[Block.Coal,Block.Copper,Block.Iron,Block.Gold].includes(hitState.type)?2:1;}
       this.releaseContainer(hitState.type,cellKey(x,low,z),new THREE.Vector3(x,y+1,z));this.sounds.play(true);this.hud.showNotice(`Mined ${blockNames[hitState.type]}`);this.hud.renderHotbar(this.life);void this.saveNow();}
     this.editBusy=false;this.miningTime=0;this.miningKey='';this.hud.setProgress(0);
+  }
+  private attackCreature(){const c=this.creatureTarget;if(!c||this.attackClock>0)return;this.attackClock=.48;
+    if(this.creatures.hit(c,meleeDamage(this.items),this.player.position)){wearWeapon(this.items);this.hud.renderHotbar(this.life);
+      if(c.alive)this.hud.showNotice(`Hit ${c.def.name} · ${Math.ceil(c.health)} HP`);void this.saveNow();}
   }
   private async place(){if(!this.target||this.editBusy)return;const hit=this.target,{x,y,z}=hit,key=cellKey(x,y,z);
     if(hit.state.type===Block.Bed){this.sleepAt(x,y,z);return;}
@@ -200,9 +214,11 @@ class Game{
   }
   private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.05);
     if(!this.paused){
+      this.attackClock=Math.max(0,this.attackClock-delta);
       if(!this.inventory.open&&!this.life.dead){this.player.update(delta);this.updateTarget();
         const hit=this.target,k=hit?cellKey(hit.x,hit.y,hit.z):'';
-        if(this.leftHeld&&hit&&!this.editBusy){if(k!==this.miningKey){this.miningKey=k;this.miningTime=0;}this.miningTime+=delta;
+        if(this.leftHeld&&this.creatureTarget){this.attackCreature();this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
+        else if(this.leftHeld&&hit&&!this.editBusy){if(k!==this.miningKey){this.miningKey=k;this.miningTime=0;}this.miningTime+=delta;
           const duration=this.life.mode==='creative'?0:this.items.miningTime(hit.state.type);this.hud.setProgress(duration===0?1:Math.min(1,this.miningTime/duration));
           if(this.miningTime>=duration)void this.mine();}
         else if(!this.editBusy){this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
@@ -211,6 +227,7 @@ class Game{
       this.world.update(this.player.position.x,this.player.position.z,delta);
       for(const furnace of this.items.furnaces.values())furnace.tick(delta);
       this.updateSurvival(delta);
+      this.creatures.update(delta,this.player.position,this.cycle.daylight,!this.life.dead&&this.life.mode==='survival');
       this.saveClock+=delta;if(this.saveClock>=5){this.saveClock=0;void this.saveNow();}
       if(this.inventory.open&&this.items.furnaces.size&&Math.floor(performance.now()/250)!==Math.floor((performance.now()-delta*1000)/250))this.inventory.render();
       const p=this.player.position;this.hud.setWorld(this.world.seed,this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z)),this.world.loadedCount,this.world.pendingCount);
@@ -219,4 +236,7 @@ class Game{
     else {this.idleRenderClock=1;this.renderer.render(this.scene,this.player.camera);}
   };
 }
-new Game().start().catch(error=>{console.error(error);document.querySelector('#app')!.textContent=`Could not start Stonewake: ${String(error)}`;});
+const game=new Game();
+if(import.meta.env.DEV&&new URLSearchParams(location.search).has('test'))
+  (window as Window&{__stonewakeGame?:Game}).__stonewakeGame=game;
+game.start().catch(error=>{console.error(error);document.querySelector('#app')!.textContent=`Could not start Stonewake: ${String(error)}`;});

@@ -15,7 +15,7 @@ async function put(save,edit){await page.evaluate(async({save,edit})=>{
   await new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
 },{save,edit});}
 try{
-  await page.goto(base,{waitUntil:'networkidle'});await page.waitForFunction(()=>document.querySelector('#world-info')?.textContent?.includes('chunks'));
+  const testUrl=new URL(base);testUrl.searchParams.set('test','1');await page.goto(testUrl.href,{waitUntil:'networkidle'});await page.waitForFunction(()=>document.querySelector('#world-info')?.textContent?.includes('chunks'));
   await page.locator('#resume').click();await page.waitForFunction(()=>document.pointerLockElement===document.querySelector('#game'));
   await page.keyboard.down('KeyW');await page.waitForTimeout(300);await page.keyboard.up('KeyW');
   await page.keyboard.press('Space');await page.waitForTimeout(1100);
@@ -30,7 +30,7 @@ try{
   await page.waitForTimeout(1800);assert.ok(Number((await page.locator('#health-bar').textContent()).match(/(\d+)\/20/)?.[1])<18,'Fall damage did not occur');
   await mkdir('.artifacts',{recursive:true});await page.screenshot({path:'.artifacts/night-storm.png'});
   await page.keyboard.press('Digit1');await page.keyboard.press('KeyF');
-  const foodSave=await saved();const foodState={hunger:await page.locator('#hunger-bar').textContent(),health:await page.locator('#health-bar').textContent(),death:await page.locator('#death').getAttribute('class'),overlay:await page.locator('#overlay').getAttribute('class'),locked:await page.evaluate(()=>document.pointerLockElement===document.querySelector('#game')),selected:foodSave?.items.selected,slot0:foodSave?.items.slots[0],hotbar:await page.locator('#hotbar').textContent()};
+  const foodSave=await saved();const foodState={hunger:await page.locator('#hunger-bar').textContent(),health:await page.locator('#health-bar').textContent(),death:await page.locator('#death').getAttribute('class'),overlay:await page.locator('#overlay').getAttribute('class'),locked:await page.evaluate(()=>document.pointerLockElement===document.querySelector('#game')),selected:foodSave?.items.selected,slot0:foodSave?.items.slots[0],hotbar:await page.locator('#hotbar').textContent(),game:await page.evaluate(()=>({paused:window.__stonewakeGame?.paused,health:window.__stonewakeGame?.life.health,hunger:window.__stonewakeGame?.life.hunger,held:window.__stonewakeGame?.items.selectedStack()}))};
   assert.match(foodState.hunger||'',/13\/20/,JSON.stringify(foodState));
   await page.keyboard.press('KeyE');await page.waitForFunction(()=>!document.querySelector('#inventory')?.classList.contains('hidden'));
   assert.equal(await page.locator('[data-grid="bag"]').count(),36);
