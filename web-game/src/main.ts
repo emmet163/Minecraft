@@ -5,7 +5,7 @@ import './ui/phase8.css';
 import './ui/phase9.css';
 import {Block,blockNames,dropType,isReplaceable,isSolid,state} from './world/blocks';
 import {VoxelWorld} from './world/world';
-import {IndexedDbEditStore,type GameSave} from './persistence/edits';
+import {IndexedDbEditStore,validGameSave,type GameSave,type WorldInfo} from './persistence/edits';
 import {PlayerController} from './player/controller';
 import {traceBlocks,type Hit} from './world/raycast';
 import {Hud} from './ui/hud';
@@ -19,7 +19,7 @@ import {BurstParticles} from './render/particles';
 import {parseQuality,qualityPreset,type Quality} from './render/quality';
 import {audioLevel,type AudioSettings} from './render/sounds';
 import {GameItems,blockItem,isEmpty,item,stack,empty,type Stack} from './items/items';
-import {SurvivalState,WorldCycle,type Mode} from './survival/state';
+import {SurvivalState,WorldCycle,type Mode,type Difficulty} from './survival/state';
 import {Biome} from './world/generator';
 import {CreatureSystem,type Creature} from './creatures/system';
 import {absorbCreatureDamage,meleeDamage,wearWeapon} from './combat/rules';
@@ -57,10 +57,14 @@ class Game{
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
+  private readonly dropGeometry=new THREE.BoxGeometry(.28,.28,.28);
+  private readonly dropMaterial=new THREE.MeshLambertMaterial({color:'#e9cc85'});
   paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
-  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;private stepClock=0;
+  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private hudClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;private stepClock=0;
   quality:Quality='low';private visualConfigured=false;
+  worldInfo:WorldInfo={id:12345,name:'World 12345',seed:12345,difficulty:'normal',mode:'survival',updatedAt:0};
+  private loadingWorld=false;
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
@@ -81,6 +85,9 @@ class Game{
     this.resize();window.addEventListener('resize',()=>this.resize());
     this.hud.onResume=()=>{this.sounds.unlock();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
     this.hud.onSettings=(seed,distance,sensitivity)=>void this.changeSettings(seed,distance,sensitivity);
+    this.hud.onNewWorld=(name,seed,difficulty,mode)=>void this.newWorld(name,seed,difficulty,mode);
+    this.hud.onLoadWorld=id=>void this.selectWorld(id);
+    this.hud.onDifficulty=difficulty=>{this.life.setDifficulty(difficulty);this.worldInfo.difficulty=this.life.difficulty;void this.saveNow();};
     this.hud.onVisualSettings=(quality,audio)=>this.applyVisualSettings(quality,audio);
     this.hud.onMode=mode=>this.setMode(mode);this.hud.onRespawn=()=>this.respawn();
     this.inventory.onClose=()=>{void this.saveNow();this.hud.renderHotbar(this.life);void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
@@ -110,7 +117,7 @@ class Game{
   }
   private resize(){const w=window.innerWidth,h=window.innerHeight;this.renderer.setSize(w,h,false);this.player.camera.aspect=w/h;this.player.camera.updateProjectionMatrix();}
   private persistSettings(seed=this.world.seed,distance=this.world.renderDistance,sensitivity=this.player.sensitivity){
-    try{localStorage.setItem(settingsKey,JSON.stringify({seed,distance,sensitivity,quality:this.quality,audio:this.sounds.settings}));}
+    try{localStorage.setItem(settingsKey,JSON.stringify({seed,distance,sensitivity,worldId:this.worldInfo.id,quality:this.quality,audio:this.sounds.settings}));}
     catch{this.hud.showNotice('Settings cannot be saved in this browser');}}
   private applyVisualSettings(quality:Quality,audio:AudioSettings){
     const selected=parseQuality(quality);
@@ -162,46 +169,79 @@ class Game{
   private snapshot():GameSave{return {version:1,position:this.player.position.toArray() as [number,number,number],yaw:this.player.yaw,pitch:this.player.pitch,items:this.items.snapshot(),life:this.life.snapshot(),cycle:this.cycle.snapshot(),exploration:this.exploration.snapshot(),villages:this.villages.snapshot(),vehicles:this.vehicles.snapshot(),effects:this.effects.snapshot(),realm:this.realm,realmPositions:this.realmPositions,realmVehicles:{...this.realmVehicles,[this.realm]:this.vehicles.snapshot()}};}
   private saveNow():Promise<void>{
     if(!this.loaded||this.saveBlocked)return this.saveQueue;
-    const seed=this.world.seed,save=this.snapshot();
+    const seed=this.worldInfo.id,save=this.snapshot();
     this.saveQueue=this.saveQueue.then(()=>this.store.saveGame(seed,save)).catch(error=>{this.hud.showNotice(`Save failed: ${String(error)}`);});
     return this.saveQueue;
   }
   private async changeSettings(seed:number,distance:number,sensitivity:number):Promise<void>{
     if(!Number.isFinite(seed)||!Number.isFinite(sensitivity))return;
+    if(typeof this.worldInfo.id==='string'&&seed!==this.worldInfo.seed){this.hud.showNotice('Create a new world to change its seed');this.hud.setSettings(this.worldInfo.seed,distance,sensitivity);seed=this.worldInfo.seed;}
+    const info=seed===this.worldInfo.seed?this.worldInfo:{id:seed,name:`World ${seed}`,seed,difficulty:'normal' as Difficulty,mode:'survival' as Mode,updatedAt:Date.now()};
+    await this.store.ensureWorld(info);await this.loadWorld(info,distance,sensitivity);
+  }
+  private async newWorld(name:string,seed:number,difficulty:Difficulty,mode:Mode):Promise<void>{
+    if(this.loadingWorld)return;
+    if(!name){this.hud.showNotice('Enter a world name');return;}
+    const id=`world:${crypto.randomUUID()}`,info:WorldInfo={id,name:name.slice(0,48),seed:seed|0,difficulty,mode,updatedAt:Date.now()};
+    await this.store.ensureWorld(info);await this.loadWorld(info,this.hud.distance,this.hud.sensitivity);
+    this.hud.showNotice(`Created ${info.name}`);
+  }
+  private async selectWorld(id:number|string):Promise<void>{
+    const info=(await this.store.listWorlds()).find(world=>world.id===id);
+    if(!info){this.hud.showNotice('Saved world unavailable');return;}
+    await this.loadWorld(info,this.hud.distance,this.hud.sensitivity);
+  }
+  private async loadWorld(info:WorldInfo,distance:number,sensitivity:number):Promise<void>{
+    if(this.loadingWorld||!Number.isFinite(sensitivity))return;this.loadingWorld=true;
+    try{
+    const seed=info.seed;
     this.player.sensitivity=Math.max(.03,Math.min(.5,sensitivity));
-    this.persistSettings(seed,distance,this.player.sensitivity);
-    if(this.loaded&&seed===this.world.seed&&distance===this.world.renderDistance){void this.saveNow();return;}
+    if(this.loaded&&info.id===this.worldInfo.id&&distance===this.world.renderDistance){this.persistSettings(seed,distance,this.player.sensitivity);void this.saveNow();return;}
     await this.saveNow();this.loaded=false;this.saveBlocked=false;this.hud.showNotice('Loading world…');
-    const saved=await this.store.loadGame(seed);
-    const valid=!!saved&&saved.version===1&&Array.isArray(saved.position)&&saved.position.length===3&&saved.position.every(Number.isFinite)&&Number.isFinite(saved.yaw)&&Number.isFinite(saved.pitch)&&!!saved.items&&!!saved.life&&!!saved.cycle;
-    if(saved&&!valid){this.saveBlocked=true;this.hud.showNotice('Save data invalid; original preserved, saving disabled');}
+    this.worldInfo=info;this.persistSettings(seed,distance,this.player.sensitivity);
+    let saved=await this.store.loadGame(info.id),valid=validGameSave(saved);
+    if(saved&&!valid){const backup=await this.store.loadBackup(info.id);
+      if(validGameSave(backup)){saved=backup;valid=true;this.hud.showNotice('Recovered player state from backup');}
+      else{this.saveBlocked=true;this.hud.showNotice('Save data invalid; original preserved, saving disabled');}}
     const position=valid?saved!.position:undefined;
     this.realm=valid&&saved!.realm==='veil'?'veil':'overworld';this.realmPositions=valid?saved!.realmPositions||{}:{};
     this.realmVehicles=valid?saved!.realmVehicles||{}:{};
     this.fluids.clear();this.automation.clear();this.farming.clear();this.litLamps.clear();
-    await this.world.configure(seed,distance,position?.[0]??0,position?.[2]??0,this.realm);
+    await this.world.configure(seed,distance,position?.[0]??0,position?.[2]??0,this.realm,info.id);
     const spawn=position?new THREE.Vector3(...position):this.realm==='veil'?new THREE.Vector3(0,this.world.generator.surfaceHeight(0,0)+3,0):this.world.spawn();
-    if(!this.world.isLoaded(Math.round(spawn.x),Math.round(spawn.z)))await this.world.configure(seed,distance,spawn.x,spawn.z,this.realm);
+    if(!this.world.isLoaded(Math.round(spawn.x),Math.round(spawn.z)))await this.world.configure(seed,distance,spawn.x,spawn.z,this.realm,info.id);
     try{this.items.load(valid?saved!.items:undefined);this.life.load(valid?saved!.life:undefined);this.cycle.load(valid?saved!.cycle:undefined,seed);
       this.exploration.load(valid?saved!.exploration:undefined);this.villages.load(valid?saved!.villages:undefined);
-      this.vehicles.load(valid?saved!.realmVehicles?.[this.realm]||saved!.vehicles:undefined);this.effects.load(valid?saved!.effects:undefined);}
+      this.vehicles.load(valid?saved!.realmVehicles?.[this.realm]||saved!.vehicles:undefined);this.effects.load(valid?saved!.effects:undefined);
+      if(!valid){this.life.setMode(info.mode);this.life.setDifficulty(info.difficulty);}}
     catch(error){this.saveBlocked=true;this.items.reset();this.life.load(undefined);this.cycle.configure(seed);this.exploration.reset();this.villages.reset();this.hud.showNotice(`Save data could not be loaded; original preserved: ${String(error)}`);}
     this.fluids.changed(this.world.editedCells);this.automation.changed(this.world.editedCells);this.farming.changed(this.world.editedCells);this.trackLamps(this.world.editedCells);
     this.player.position.copy(spawn);this.player.yaw=valid?saved!.yaw||0:0;this.player.pitch=valid?saved!.pitch||0:0;
     this.player.object.rotation.y=this.player.yaw;this.player.camera.rotation.x=this.player.pitch;this.player.setFlight(this.life.mode==='creative');
-    this.creatures.configure(seed);this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);
+    this.creatures.configure(seed);this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);this.hud.setDifficulty(this.life.difficulty);
     this.hud.setWorld(seed,this.world.generator.biomeAt(Math.round(spawn.x),Math.round(spawn.z)),this.world.loadedCount,this.world.pendingCount);
     this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);this.updateLighting();this.updateLampLights();
-    this.loaded=true;this.hud.showNotice(`World ${seed} ready`);
+    this.loaded=true;this.hud.setSettings(seed,distance,this.player.sensitivity);this.hud.setWorlds(await this.store.listWorlds(),info.id);this.hud.showNotice(`${info.name} ready`);
     this.updateAdvancedInfo();
     this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);
+    void this.saveNow();
+    }catch(error){this.loaded=false;this.paused=true;this.hud.setPaused(true);this.hud.showNotice(`World could not load: ${String(error)}`);}
+    finally{this.loadingWorld=false;}
   }
-  async start(){let settings={seed:12345,distance:2,sensitivity:.18,quality:'low' as Quality,audio:{effects:.7,ambience:.45,music:0}};
+  async start(){let settings={seed:12345,distance:2,sensitivity:.18,worldId:undefined as number|string|undefined,quality:'low' as Quality,audio:{effects:.7,ambience:.45,music:0}};
     try{settings={...settings,...JSON.parse(localStorage.getItem(settingsKey)||'{}')};}catch{/* defaults */}
+    settings.seed=Number.isFinite(settings.seed)?settings.seed|0:12345;
+    settings.distance=Number.isFinite(settings.distance)?Math.max(2,Math.min(6,settings.distance|0)):2;
+    settings.sensitivity=Number.isFinite(settings.sensitivity)?Math.max(.03,Math.min(.5,settings.sensitivity)):.18;
+    if(typeof settings.worldId!=='string'&&!(typeof settings.worldId==='number'&&Number.isFinite(settings.worldId)))settings.worldId=undefined;
+    let worlds=await this.store.listWorlds();
+    if(!worlds.length){const seed=Number.isFinite(settings.seed)?settings.seed|0:12345;
+      await this.store.ensureWorld({id:seed,name:`World ${seed}`,seed,difficulty:'normal',mode:'survival',updatedAt:Date.now()});worlds=await this.store.listWorlds();}
+    this.worldInfo=worlds.find(world=>world.id===settings.worldId)||worlds.find(world=>world.id===settings.seed)||worlds[0]!;
     const audio={effects:audioLevel(settings.audio?.effects),ambience:audioLevel(settings.audio?.ambience),music:audioLevel(settings.audio?.music)};
-    this.hud.setSettings(settings.seed,settings.distance,settings.sensitivity);this.hud.setVisualSettings(parseQuality(settings.quality),audio);
-    this.applyVisualSettings(parseQuality(settings.quality),audio);await this.changeSettings(settings.seed,settings.distance,settings.sensitivity);this.running=true;this.frame();}
-  private setMode(mode:Mode){if(this.life.dead)return;this.life.setMode(mode);this.player.setFlight(mode==='creative');this.hud.setMode(mode);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);void this.saveNow();}
+    this.hud.setSettings(this.worldInfo.seed,settings.distance,settings.sensitivity);this.hud.setVisualSettings(parseQuality(settings.quality),audio);
+    this.applyVisualSettings(parseQuality(settings.quality),audio);await this.loadWorld(this.worldInfo,settings.distance,settings.sensitivity);this.running=true;this.frame();}
+  private setMode(mode:Mode){if(this.life.dead)return;this.life.setMode(mode);this.worldInfo.mode=mode;this.player.setFlight(mode==='creative');this.hud.setMode(mode);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);void this.saveNow();}
   private useSelected(){if(this.life.mode==='creative'||this.life.dead)return;const held=this.items.selectedStack();if(isEmpty(held))return;
     if(this.effects.use(held.id)||held.id==='mend_tonic'){if(held.id==='mend_tonic')this.life.heal(8);
       this.items.spendSelected();this.hud.renderHotbar(this.life);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.updateAdvancedInfo();void this.saveNow();return;}
@@ -216,7 +256,7 @@ class Game{
       this.realmVehicles[oldRealm]=this.vehicles.snapshot();this.realm=oldRealm==='overworld'?'veil':'overworld';
       const destination=this.realmPositions[this.realm];
       this.fluids.clear();this.automation.clear();this.farming.clear();this.litLamps.clear();this.creatures.clear();this.vehicles.load(this.realmVehicles[this.realm]);
-      await this.world.configure(seed,distance,destination?.[0]??0,destination?.[2]??0,this.realm);
+      await this.world.configure(seed,distance,destination?.[0]??0,destination?.[2]??0,this.realm,this.worldInfo.id);
       const landing=destination?new THREE.Vector3(...destination):this.realm==='veil'?new THREE.Vector3(0,this.world.generator.surfaceHeight(0,0)+3,0):this.world.spawn();
       this.world.ensureLoaded(landing.x,landing.z);this.player.position.copy(landing);this.player.velocity.set(0,0,0);this.player.knockback.set(0,0,0);
       for(let offset=2;offset<=5;offset++){const gx=Math.round(landing.x)+offset,gz=Math.round(landing.z),gy=this.world.generator.surfaceHeight(gx,gz)+1;
@@ -229,11 +269,11 @@ class Game{
       this.updateAdvancedInfo();
       this.hud.showNotice(this.realm==='veil'?'Entered the Veil':'Returned to the Overworld');
     }catch(error){this.realm=oldRealm;this.vehicles.load(this.realmVehicles[oldRealm]);
-      await this.world.configure(seed,distance,oldPosition.x,oldPosition.z,oldRealm);this.player.position.copy(oldPosition);
+      await this.world.configure(seed,distance,oldPosition.x,oldPosition.z,oldRealm,this.worldInfo.id);this.player.position.copy(oldPosition);
       this.hud.showNotice(`Realm travel failed: ${String(error)}`);
     }finally{this.loaded=true;this.paused=wasPaused;this.editBusy=false;void this.saveNow();}
   }
-  private takeDamage(amount:number){if(this.life.damage(this.effects.reduceDamage(amount))){this.sounds.hurt();this.firstPerson.triggerHurt();this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
+  private takeDamage(amount:number){if(this.life.damage(this.effects.reduceDamage(amount)*(this.life.difficulty==='hard'?1.5:1))){this.sounds.hurt();this.firstPerson.triggerHurt();this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
   private enterDeath(){this.leftHeld=false;this.vehicles.mounted=null;this.player.velocity.set(0,0,0);if(this.inventory.open){this.inventory.open=false;this.inventory.overlay.classList.add('hidden');}
     if(this.trade.open){this.trade.open=false;this.trade.overlay.classList.add('hidden');}
     if(this.navigation.open){this.navigation.open=false;this.navigation.overlay.classList.add('hidden');}
@@ -315,13 +355,14 @@ class Game{
     if(type===Block.Door){if(ny+1>=HEIGHT||!isReplaceable(this.world.get(nx,ny+1,nz))||this.player.overlapsBlock(nx,ny+1,nz))return;changes.push({x:nx,y:ny+1,z:nz,state:state(type,properties|4)});}
     this.editBusy=true;if(await this.world.apply(changes)){if(this.life.mode==='survival')this.items.spendSelected();this.sounds.play(false);this.hud.renderHotbar(this.life);this.hud.showNotice(`Placed ${blockNames[type]}`);void this.saveNow();}this.editBusy=false;
   }
-  private spawnItem(value:Stack,position:THREE.Vector3){if(isEmpty(value))return;const mesh=new THREE.Mesh(new THREE.BoxGeometry(.28,.28,.28),new THREE.MeshLambertMaterial({color:'#e9cc85'}));mesh.position.copy(position);this.scene.add(mesh);this.drops.push({mesh,item:{...value},age:0,velocity:1.5});}
-  private removeDrop(index:number){const drop=this.drops[index]!;this.scene.remove(drop.mesh);drop.mesh.geometry.dispose();(drop.mesh.material as THREE.Material).dispose();this.drops.splice(index,1);}
+  private spawnItem(value:Stack,position:THREE.Vector3){if(isEmpty(value))return;const mesh=new THREE.Mesh(this.dropGeometry,this.dropMaterial);mesh.position.copy(position);this.scene.add(mesh);this.drops.push({mesh,item:{...value},age:0,velocity:1.5});}
+  private removeDrop(index:number){const drop=this.drops[index]!;this.scene.remove(drop.mesh);this.drops.splice(index,1);}
   private clearDrops(){for(let i=this.drops.length-1;i>=0;i--)this.removeDrop(i);}
   private updateDrops(delta:number){for(let i=this.drops.length-1;i>=0;i--){const d=this.drops[i]!;d.age+=delta;d.mesh.rotation.y+=delta*1.3;if(d.age>300){this.removeDrop(i);continue;}
     d.velocity-=16*delta;const next=d.mesh.position.y+d.velocity*delta,b=this.world.get(Math.round(d.mesh.position.x),Math.floor(next+.36),Math.round(d.mesh.position.z));
     if(b===Block.Air||b===Block.Water)d.mesh.position.y=next;else d.velocity=0;
-    if(d.age>.4&&d.mesh.position.distanceTo(this.player.position.clone().add(new THREE.Vector3(0,1,0)))<1.7){const left=this.items.slots.add(d.item.id,d.item.count,d.item.damage);if(left<d.item.count){d.item.count=left;this.hud.renderHotbar(this.life);void this.saveNow();if(!left){this.hud.showNotice(`Collected ${item(d.item.id).name}`);this.removeDrop(i);}}}
+    const p=this.player.position,dx=d.mesh.position.x-p.x,dy=d.mesh.position.y-p.y-1,dz=d.mesh.position.z-p.z;
+    if(d.age>.4&&dx*dx+dy*dy+dz*dz<1.7**2){const left=this.items.slots.add(d.item.id,d.item.count,d.item.damage);if(left<d.item.count){d.item.count=left;this.hud.renderHotbar(this.life);void this.saveNow();if(!left){this.hud.showNotice(`Collected ${item(d.item.id).name}`);this.removeDrop(i);}}}
   }}
   private isSnowing(){const p=this.player.position;return this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z))===Biome.Snow;}
   private outdoors(){const p=this.player.position;return p.y>=this.world.generator.surfaceHeight(Math.round(p.x),Math.round(p.z))+1;}
@@ -337,7 +378,7 @@ class Game{
         this.lavaClock+=delta;if(this.lavaClock>=1){this.lavaClock=0;this.takeDamage(4);}
       }else this.lavaClock=0;
       if(this.life.dead)this.enterDeath();}
-    this.hud.setSurvival(this.life,this.cycle,snow);
+    this.hudClock+=delta;if(this.hudClock>=.1){this.hudClock=0;this.hud.setSurvival(this.life,this.cycle,snow);}
     this.lightClock+=delta;if(this.lightClock>=.2){this.lightClock=0;this.updateLighting();}
   }
   private updateLighting(){const daylight=this.cycle.daylight,storm=this.cycle.intensity*(this.cycle.weather==='storm'?.35:.13);
@@ -352,7 +393,7 @@ class Game{
     (this.scene.background as THREE.Color).copy(sky);(this.scene.fog as THREE.Fog).color.copy(horizon);
     this.sky.update(this.player.position,sky,horizon,sky.clone().multiplyScalar(.55),new THREE.Vector3(sunX,sunY,35),b);
   }
-  private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.05);
+  private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.12);
     if(!this.paused){
       this.attackClock=Math.max(0,this.attackClock-delta);
       if(!this.inventory.open&&!this.trade.open&&!this.navigation.open&&!this.life.dead){
@@ -381,10 +422,11 @@ class Game{
       this.villageClock+=delta;if(this.villageClock>=1.5){this.villageClock=0;
         for(const site of this.world.generator.structures.nearby(this.player.position.x,this.player.position.z,42)){
           this.creatures.ensureVillage(site,this.villages.deceased);
-          this.creatures.ensureDungeon(site,this.exploration.defeated);
+          if(this.life.difficulty!=='peaceful')this.creatures.ensureDungeon(site,this.exploration.defeated);
         }}
-      this.creatures.update(delta,this.player.position,this.cycle.daylight,!this.life.dead&&this.life.mode==='survival',this.cycle.hour);
+      this.creatures.update(delta,this.player.position,this.cycle.daylight,!this.life.dead&&this.life.mode==='survival',this.cycle.hour,this.life.difficulty);
       this.navigationClock+=delta;if(this.navigationClock>=1){this.navigationClock=0;
+        const p=this.player.position;this.hud.setWorld(this.world.seed,this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z)),this.world.loadedCount,this.world.pendingCount);
         this.updateLampLights();
         this.updateAdvancedInfo();
         const fresh=this.exploration.visit(this.world.generator.structures,this.player.position.x,this.player.position.z);
@@ -394,7 +436,6 @@ class Game{
       if(this.trade.open&&(!this.trade.creature?.alive||!this.creatures.creatures.includes(this.trade.creature)))this.trade.close();
       this.saveClock+=delta;if(this.saveClock>=5){this.saveClock=0;void this.saveNow();}
       if(this.inventory.open&&this.items.furnaces.size&&Math.floor(performance.now()/250)!==Math.floor((performance.now()-delta*1000)/250))this.inventory.render();
-      const p=this.player.position;this.hud.setWorld(this.world.seed,this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z)),this.world.loadedCount,this.world.pendingCount);
     }
     if(this.paused||this.inventory.open||this.trade.open||this.navigation.open){this.idleRenderClock+=delta;if(this.idleRenderClock>=1){this.idleRenderClock=0;this.renderer.render(this.scene,this.player.camera);}}
     else {this.idleRenderClock=1;this.renderer.render(this.scene,this.player.camera);}

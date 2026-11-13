@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
-import {chromium} from 'playwright';
+import {launchTestBrowser} from './launch.mjs';
 
-const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl']});
+const browser=await launchTestBrowser();
 const context=await browser.newContext({viewport:{width:1280,height:720}});
 const page=await context.newPage();
 const errors=[];
@@ -20,7 +19,7 @@ try {
   await page.goto(process.env.STONEWAKE_URL || 'http://127.0.0.1:5173/',{waitUntil:'networkidle'});
   try { await page.waitForFunction(()=>document.querySelector('#world-info')?.textContent?.includes('chunks'),undefined,{timeout:10000}); }
   catch(error) { console.log('Startup errors:',errors,'Body:',(await page.locator('body').textContent()).slice(0,800)); throw error; }
-  assert.equal(await page.title(),'Stonewake — Browser Migration');
+  assert.equal(await page.title(),'Stonewake — Voxel Survival');
   await mkdir('.artifacts',{recursive:true});
   await page.screenshot({path:'.artifacts/browser-pause.png'});
   await page.locator('#resume').click();
@@ -48,8 +47,10 @@ try {
   }
   const target=await page.locator('#target').textContent();
   assert.ok(target, 'No selectable block reached');
-  await page.mouse.down({button:'left'});await page.waitForTimeout(2600);await page.mouse.up({button:'left'});
-  const saved=await readEdits();
+  await page.mouse.down({button:'left'});
+  let saved=[];
+  for(let i=0;i<60;i++){await page.waitForTimeout(250);saved=await readEdits();if(saved.length)break;}
+  await page.mouse.up({button:'left'});
   assert.ok(saved.length>=1,'Mined edit was not persisted in IndexedDB');
   await page.mouse.move(640,360);
   await page.mouse.move(640,550);

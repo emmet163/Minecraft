@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Stonewake">
+  <rect width="64" height="64" rx="12" fill="#152e3d"/>
+  <path d="M8 42 24 21l9 12 9-15 14 24v9H8Z" fill="#78916f"/>
+  <path d="m24 21 9 12 9-15 14 24H39l-9-9-8 9H8Z" fill="#b8c7ab"/>
+  <path d="M8 44h48v8H8Z" fill="#927554"/>
+  <path d="m43 18 4 7h-8Z" fill="#f1db9a"/>
+</svg>

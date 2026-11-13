@@ -1,5 +1,9 @@
 # Godot-to-browser migration report — Parts 1 and 2
 
+## Phase 10 closure (2026-11-13)
+
+The existing browser implementation remains the sole active game project. Phase 10 added named worlds with seed-based terrain and separate IndexedDB world identifiers, retaining legacy numeric-seed saves. It added world creation/loading and difficulty selection, backup recovery for player saves, and final performance/reliability checks. `web-game/vercel.json` and the relative-path Vite build prepare the static site for Vercel with `web-game` as the project root. No backend or deployment was added. The original Godot project was not changed; its saved files still are not imported. Current automated results and remaining limits are in [TEST_REPORT.md](TEST_REPORT.md) and [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 Date: 2026-11-12. Browser project: `web-game/`. Original Godot 4.4.1 .NET/C# Phase 5 project: repository root, protected at tag `godot-phase5-before-web-migration`. The separate `preview-site/` directory was left untouched. No deployment or Phase 6 work was performed.
 
 ## Source reviewed and migration map

@@ -1,15 +1,17 @@
 import { Block } from '../world/blocks';
 export type Mode='survival'|'creative';
+export type Difficulty='peaceful'|'normal'|'hard';
 export interface BedCell{x:number;y:number;z:number}
-export interface LifeSave{health:number;hunger:number;saturation:number;oxygen:number;experience:number;mode:Mode;bed:BedCell|null;creativeBlock:Block}
+export interface LifeSave{health:number;hunger:number;saturation:number;oxygen:number;experience:number;mode:Mode;bed:BedCell|null;creativeBlock:Block;difficulty?:Difficulty}
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n));
 export class SurvivalState {
-  health=20;hunger=20;saturation=5;oxygen=10;experience=0;mode:Mode='survival';bed:BedCell|null=null;creativeBlock=Block.Stone;
+  health=20;hunger=20;saturation=5;oxygen=10;experience=0;mode:Mode='survival';difficulty:Difficulty='normal';bed:BedCell|null=null;creativeBlock=Block.Stone;
   private hungerClock=0;private healClock=0;private damageClock=0;private oxygenClock=0;private exposureClock=0;private healDelay=0;
   get dead(){return this.health<=0;}
   get level(){let points=this.experience,level=0;while(points>=10+level*5){points-=10+level*5;level++;}return level;}
   get experienceFraction(){let points=this.experience,level=0;while(points>=10+level*5){points-=10+level*5;level++;}return points/(10+level*5);}
   setMode(mode:Mode){this.mode=mode;if(mode==='creative'){this.health=20;this.oxygen=10;}}
+  setDifficulty(value:Difficulty){this.difficulty=value==='peaceful'||value==='hard'?value:'normal';}
   damage(amount:number):boolean{if(this.mode==='creative'||this.dead||amount<=0)return false;this.health=Math.max(0,this.health-amount);this.healClock=0;this.healDelay=8;return true;}
   heal(amount:number){if(!this.dead&&amount>0)this.health=Math.min(20,this.health+amount);}
   eat(nutrition:number,saturation:number,healing=0):boolean{
@@ -18,8 +20,9 @@ export class SurvivalState {
   }
   tick(seconds:number,sprinting:boolean,underwater:boolean,suffocating:boolean,cold:boolean,hot:boolean):void{
     if(seconds<=0||this.dead||this.mode==='creative')return;
+    if(this.difficulty==='peaceful'){this.hunger=20;this.saturation=Math.max(this.saturation,5);this.heal(Math.min(seconds*.05,20));}
     this.healDelay=Math.max(0,this.healDelay-seconds);
-    this.hungerClock+=seconds*(sprinting?2:1);
+    this.hungerClock+=seconds*(sprinting?2:1)*(this.difficulty==='hard'?1.5:this.difficulty==='peaceful'?0:1);
     while(this.hungerClock>=45){this.hungerClock-=45;if(this.saturation>0)this.saturation=Math.max(0,this.saturation-1);else this.hunger=Math.max(0,this.hunger-1);}
     if(underwater){this.oxygen=Math.max(0,this.oxygen-seconds);this.oxygenClock+=seconds;if(this.oxygen<=0&&this.oxygenClock>=1){this.oxygenClock=0;this.damage(1);}}
     else {this.oxygen=Math.min(10,this.oxygen+seconds*3);this.oxygenClock=0;}
@@ -30,9 +33,9 @@ export class SurvivalState {
     else this.healClock=0;
   }
   respawn(){this.health=20;this.hunger=18;this.saturation=5;this.oxygen=10;this.experience=Math.floor(this.experience/2);this.hungerClock=this.healClock=this.damageClock=this.oxygenClock=this.exposureClock=this.healDelay=0;}
-  snapshot():LifeSave{return {health:this.health,hunger:this.hunger,saturation:this.saturation,oxygen:this.oxygen,experience:this.experience,mode:this.mode,bed:this.bed?{...this.bed}:null,creativeBlock:this.creativeBlock};}
-  load(save:LifeSave|undefined){if(!save){this.health=20;this.hunger=20;this.saturation=5;this.oxygen=10;this.experience=0;this.mode='survival';this.bed=null;this.creativeBlock=Block.Stone;return;}
-    this.health=clamp(save.health,0,20);this.hunger=clamp(save.hunger,0,20);this.saturation=clamp(save.saturation,0,this.hunger);this.oxygen=clamp(save.oxygen,0,10);this.experience=Math.max(0,save.experience|0);this.mode=save.mode==='creative'?'creative':'survival';this.bed=save.bed??null;this.creativeBlock=save.creativeBlock||Block.Stone;
+  snapshot():LifeSave{return {health:this.health,hunger:this.hunger,saturation:this.saturation,oxygen:this.oxygen,experience:this.experience,mode:this.mode,difficulty:this.difficulty,bed:this.bed?{...this.bed}:null,creativeBlock:this.creativeBlock};}
+  load(save:LifeSave|undefined){if(!save){this.health=20;this.hunger=20;this.saturation=5;this.oxygen=10;this.experience=0;this.mode='survival';this.difficulty='normal';this.bed=null;this.creativeBlock=Block.Stone;return;}
+    this.health=clamp(save.health,0,20);this.hunger=clamp(save.hunger,0,20);this.saturation=clamp(save.saturation,0,this.hunger);this.oxygen=clamp(save.oxygen,0,10);this.experience=Math.max(0,save.experience|0);this.mode=save.mode==='creative'?'creative':'survival';this.setDifficulty(save.difficulty||'normal');this.bed=save.bed??null;this.creativeBlock=save.creativeBlock||Block.Stone;
     this.hungerClock=this.healClock=this.damageClock=this.oxygenClock=this.exposureClock=this.healDelay=0;
   }
 }

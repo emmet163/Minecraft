@@ -7,11 +7,11 @@ Stonewake is a single-player voxel survival game built with Three.js, TypeScript
 Install Node.js 20.19+ or 22.12+ and npm. From `web-game/`:
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
-Open the printed address, normally `http://127.0.0.1:5173/`, then select **Enter world**. Escape releases the mouse and opens the pause menu.
+Open the printed address, normally `http://127.0.0.1:5173/`. The menu loads the last world, lists saved worlds, and lets you create a named world with a seed, difficulty, and game mode. Select **Enter world** to capture the mouse. Escape releases it and opens the pause menu.
 
 ```powershell
 npm run typecheck
@@ -20,7 +20,7 @@ npm run build
 npm run preview
 ```
 
-`npm run build` creates a static `dist/` directory. `npm run preview` serves it at `http://127.0.0.1:4173/` by default. The optional browser tests require Microsoft Edge at its standard Windows installation path and a running dev or preview server:
+`npm run build` creates a static `dist/` directory. `npm run preview` serves it at `http://127.0.0.1:4173/` by default. The optional browser tests use Microsoft Edge on Windows or Playwright Chromium elsewhere, and require a running dev or preview server:
 
 ```powershell
 npm run test:browser
@@ -30,9 +30,11 @@ npm run test:creatures
 npm run test:exploration
 npm run test:advanced
 npm run test:visuals
+npm run test:final
+npm run test:performance
 ```
 
-Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview.
+Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview. In PowerShell, use `$env:STONEWAKE_URL='http://127.0.0.1:4173/'`. Set `STONEWAKE_BROWSER=chromium` or `msedge` to choose a Playwright browser channel. The fixture-based browser tests (`test:integration` through `test:final`) require the Vite development server and `?test=1`; `test:browser` and `test:performance` also work against the built preview.
 
 ## Controls
 
@@ -52,7 +54,7 @@ Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the pro
 | Trade with a targeted inhabitant | Right mouse |
 | Pause and release mouse | Escape |
 
-The pause menu sets the world seed, render distance, mouse sensitivity, graphics quality, effects/ambience/music volume, and Survival or Creative mode. In Creative mode, choose a block from the inventory palette. Right-click a crafting station, chest, furnace, door, or bed to use it. Inventory slots support left-click transfers and right-click splitting or placing one item. The first nine of 36 inventory slots form the hotbar. The inventory also contains equipment slots, a personal 2×2 grid, and a recipe guide; a crafting station provides a 3×3 grid.
+The menu offers **Create new world** and **Load selected world**. Enter a name and numeric seed, choose Peaceful, Normal, or Hard difficulty and Survival or Creative mode, then create the world. Worlds with the same seed have separate edits and player progress. To change a named world's seed, create another world; the seed determines its terrain. Peaceful suppresses hostile spawns and restores hunger; Hard increases hunger use and incoming hits. The pause menu also sets render distance, mouse sensitivity, graphics quality, and effects/ambience/music volume. In Creative mode, choose a block from the inventory palette. Right-click a crafting station, chest, furnace, door, or bed to use it. Inventory slots support left-click transfers and right-click splitting or placing one item. The first nine of 36 inventory slots form the hotbar. The inventory also contains equipment slots, a personal 2×2 grid, and a recipe guide; a crafting station provides a 3×3 grid.
 
 ## World and saves
 
@@ -84,10 +86,10 @@ The pause menu offers **Low**, **Medium**, and **High** graphics presets. Low is
 
 ## Saves
 
-IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, spawn point, discovered landmarks, generated treasure, trade stock, deceased inhabitants or dungeon guards, vehicles, effects and realm positions. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control, world, graphics, and audio settings. Saved Godot `user://` files are not imported.
+IndexedDB stores named world records and separate terrain edits and player data for each world. Progress includes position, inventory, equipment, containers, furnace progress, health, hunger, difficulty, time, weather, spawn point, landmarks, generated treasure, trade stock, deceased inhabitants or dungeon guards, vehicles, effects, and realm positions. Legacy seed-based saves still load. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Each successful player save retains the previous valid player snapshot; if the current snapshot is corrupt, the game loads that backup. Terrain edits are not included in this backup. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores the selected world, controls, graphics, and audio settings. Saves stay in the current browser and origin; they do not sync across devices. Saved Godot `user://` files are not imported.
 
 ## Deploy to Vercel
 
-Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No Phase 9 deployment was performed.
+Create a Vercel project from this repository and set **Root Directory** to `web-game`. The checked-in `vercel.json` specifies the Vite framework, `npm run build`, and `dist`; use those values if entering build settings manually. The Vite base is relative, and the built-preview browser test checked the static asset paths. Single-player play needs no backend. IndexedDB data is tied to the site's origin, so saves made on localhost will not appear on the deployed domain. The project was prepared for Vercel but was not deployed.
 
 See [MIGRATION_REPORT.md](MIGRATION_REPORT.md), [TEST_REPORT.md](TEST_REPORT.md), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for verified coverage and limits.

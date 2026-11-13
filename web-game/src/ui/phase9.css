@@ -14,6 +14,10 @@
 .panel,.inventory-panel{background:linear-gradient(155deg,#213a49f7,#122332f8);border:1px solid #b7c9b987;box-shadow:0 25px 75px #030b13cf,inset 0 1px #fff3}
 #overlay .panel{width:min(590px,94vw);grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
 #overlay .panel>h1,#overlay .panel>p,#overlay .panel>button{grid-column:1/-1}
+#world-tools{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:end;padding:12px;border:1px solid #8ca8a766;border-radius:8px;background:#0b1b2a80}
+#world-tools label{min-width:0}
+#world-tools button{min-height:36px;white-space:nowrap}
+#new-world-name{width:100%;min-height:35px;padding:7px;background:#0c1b27;color:white;border:1px solid #7e988f;border-radius:4px}
 .panel h1{text-transform:uppercase;letter-spacing:.15em;text-shadow:0 2px 18px #eac57344}
 .panel button,.inventory-panel button:not(.inv-slot){transition:background .15s,transform .15s,box-shadow .15s}
 .panel button:hover,.inventory-panel button:not(.inv-slot):hover{transform:translateY(-1px);box-shadow:0 4px 15px #0006}
@@ -24,5 +28,5 @@
 .inventory-panel{gap:24px}
 .inv-slot{transition:transform .12s,background .12s,border-color .12s;background:linear-gradient(145deg,#314d59,#203743)}
 #notice{background:#142637d4;padding:5px 9px;border-left:2px solid #f0cd7a;border-radius:3px;pointer-events:none}
-@media(max-width:700px){.bottom{padding-inline:4px}.slot{width:10vw}.panel{max-height:95vh;padding:18px 22px}#overlay .panel{grid-template-columns:1fr}.topline{top:7px;left:7px}}
+@media(max-width:700px){.bottom{padding-inline:4px}.slot{width:10vw}.panel{max-height:95vh;padding:18px 22px}#overlay .panel,#world-tools{grid-template-columns:1fr}.topline{top:7px;left:7px}}
 @media(prefers-reduced-motion:reduce){.panel button,.inv-slot,.slot{transition:none}}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
-import {chromium} from 'playwright';
-const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl']});
+import {launchTestBrowser} from './launch.mjs';
+const browser=await launchTestBrowser();
 const context=await browser.newContext({viewport:{width:1280,height:720}}),page=await context.newPage(),errors=[];
 page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
 const base=process.env.STONEWAKE_URL||'http://127.0.0.1:5173/';

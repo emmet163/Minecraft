@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Phase 10 review
+
+- **Frame rate:** The 60 FPS at 1080p target remains unverified. A 25-chunk built-preview run at 1920×1080 on headless Edge/SwiftShader averaged 250.8 ms between frames (487.1 ms maximum); 1280×720 averaged 133.1 ms. This is software rendering and cannot predict native GPU performance. Main-thread generation/meshing and advanced simulations can still stall frames. The main JS output is 666.00 kB and exceeds Vite's 500 kB advisory.
+- **Save recovery:** The previous valid player snapshot can recover a corrupt current player save. Terrain edits are not in that backup, and terrain/player data use separate transactions, so a crash can leave slightly different save points. Saves remain local to one browser origin. Storage failure leaves only temporary in-memory progress and shows a warning.
+- **Coverage:** Automated Edge checks exercised gameplay in separate scenarios. A single uninterrupted manual end-to-end playthrough, native GPU profiling, long-session memory stability, other browser engines, mobile/touch, assistive technology, and audible speaker quality remain unverified. No Vercel deployment was performed.
+- **Browser test portability:** The hardcoded Windows Edge executable path noted in the earlier report was removed. Tests now select Playwright's Edge channel on Windows or Chromium elsewhere; only Windows Edge was actually run.
+
 ## Phase 9 additions
 
 - **Performance:** Medium soft shadows averaged 193.1–210.4 ms between animation frames in short headless Edge/SwiftShader runs. A separate built-preview run had one unexplained 286-second frame wait, although the gameplay assertions passed; other 25-chunk runs measured about 124–126 ms mean. Low quality is the default; High quality shadow performance was not measured. Native GPU frame rates and long-session memory use remain unverified. The main Vite JS chunk is 657.14 kB and exceeds the 500 kB advisory.

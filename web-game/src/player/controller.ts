@@ -43,8 +43,8 @@ export class PlayerController {
   private moveAxis(axis:'x'|'y'|'z',amount:number,height:number): void {
     const steps=Math.max(1,Math.ceil(Math.abs(amount)/.2)),step=amount/steps;
     for(let i=0;i<steps;i++) {
-      const next=this.position.clone(); next[axis]+=step;
-      if(this.collides(next.x,next.y,next.z,height)) {
+      const x=this.position.x+(axis==='x'?step:0),y=this.position.y+(axis==='y'?step:0),z=this.position.z+(axis==='z'?step:0);
+      if(this.collides(x,y,z,height)) {
         if(axis==='y' && step<0) this.grounded=true;
         this.velocity[axis]=0; return;
       }
@@ -52,7 +52,7 @@ export class PlayerController {
     }
   }
   update(delta:number): void {
-    delta=Math.min(delta,.05);
+    delta=Math.min(delta,.12);
     if(!this.world.isLoaded(cellOf(this.position.x),cellOf(this.position.z))) return;
     if(this.flying){
       const forward=(this.keys.has('KeyW')?1:0)-(this.keys.has('KeyS')?1:0);

@@ -4,6 +4,7 @@ import {Block,cellOf,collisionBoxes,isSolid,type BlockState} from '../world/bloc
 import {biomeNames,type Biome} from '../world/generator';
 import {traceBlocks} from '../world/raycast';
 import type {StructureSite,SitePoint} from '../world/structures';
+import type {Difficulty} from '../survival/state';
 
 export type CreatureKind='peaceful'|'neutral'|'hostile'|'friendly';
 export type CreatureState='idle'|'wander'|'graze'|'chase'|'attack'|'flee';
@@ -153,7 +154,7 @@ export class CreatureSystem{
     for(let i=0;i<c.meshes.length;i++)c.meshes[i]!.material=c.hurtClock>0?this.hitMaterial:this.material(i===0&&c.tunic?c.tunic:c.def.parts[i]!.color);
     c.group.rotation.y=c.heading;c.group.rotation.z=c.state==='attack'?Math.sin(c.age*12)*.055:0;
   }
-  private spawnNear(player:THREE.Vector3,daylight:number){if(this.creatures.length>=this.maxPopulation)return;
+  private spawnNear(player:THREE.Vector3,daylight:number,difficulty:Difficulty){if(this.creatures.length>=this.maxPopulation)return;
     for(let attempt=0;attempt<12;attempt++){
       const angle=this.random()*TWO_PI,distance=14+this.random()*22;
       const x=Math.round(player.x+Math.cos(angle)*distance),z=Math.round(player.z+Math.sin(angle)*distance);
@@ -162,16 +163,17 @@ export class CreatureSystem{
       if(h<44||h>91||!isSolid(this.world.get(x,h,z))||this.world.get(x,h+1,z)!==Block.Air||this.world.get(x,h+2,z)!==Block.Air)continue;
       let crowded=false;for(const other of this.creatures)if((other.position.x-x)**2+(other.position.z-z)**2<36){crowded=true;break;}if(crowded)continue;
       const realm=this.world.generator.realm||'overworld';
-      const eligible=creatureDefs.filter(def=>def.kind!=='friendly'&&(def.realm||'overworld')===realm&&def.biomes.includes(biome)&&
+      const eligible=creatureDefs.filter(def=>def.kind!=='friendly'&&(difficulty!=='peaceful'||def.kind!=='hostile')&&(def.realm||'overworld')===realm&&def.biomes.includes(biome)&&
         (def.kind==='hostile'?(realm==='veil'||daylight<.25):def.kind==='peaceful'?daylight>.15:true));
       if(!eligible.length)continue;const choice=eligible[Math.floor(this.random()*eligible.length)]!;
       if(choice.kind==='hostile'&&this.creatures.filter(c=>c.def.kind==='hostile').length>=10)continue;
       this.spawnAt(choice.id,x,h+.51,z);return;
     }
   }
-  update(delta:number,player:THREE.Vector3,daylight:number,playerVulnerable:boolean,hour=12){delta=Math.min(delta,.05);
-    this.spawnClock+=delta;if(this.spawnClock>=3.5){this.spawnClock=0;this.spawnNear(player,daylight);}
+  update(delta:number,player:THREE.Vector3,daylight:number,playerVulnerable:boolean,hour=12,difficulty:Difficulty='normal'){delta=Math.min(delta,.05);
+    this.spawnClock+=delta;if(this.spawnClock>=3.5){this.spawnClock=0;this.spawnNear(player,daylight,difficulty);}
     for(let i=this.creatures.length-1;i>=0;i--){const c=this.creatures[i]!,distanceSq=c.position.distanceToSquared(player);
+      if(difficulty==='peaceful'&&c.def.kind==='hostile'){this.removeAt(i);continue;}
       if(distanceSq>this.despawnRadius**2||!this.world.isLoaded(c.position.x,c.position.z)){this.removeAt(i);continue;}
       if(!c.alive){c.deadClock-=delta;c.group.scale.setScalar(Math.max(.001,c.deadClock/.3));if(c.deadClock<=0)this.removeAt(i);continue;}
       if(distanceSq>this.activeRadius**2)continue;

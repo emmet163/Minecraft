@@ -23,14 +23,17 @@ export class VoxelWorld {
   private chunks=new Map<string,Chunk>();
   private pending=new Set<string>();
   private edits=new Map<string,Edit>();
+  private editsByChunk=new Map<string,Set<string>>();
   private workers: Worker[]=[];
   private busy=new Map<Worker,{epoch:number;k:string}>();
   private epoch=0;
   private queue: Promise<void>=Promise.resolve();
   private fallClock=0;
+  private scanClock=1;private lastScanX=Number.NaN;private lastScanZ=Number.NaN;
   private fallCandidates=new Set<string>();
   private centerX=0; private centerZ=0;
   generator=new WorldGenerator(12345);
+  worldId:number|string=12345;
   renderDistance=2;
   onError: (message: string)=>void=console.error;
   onEdits:(changes:Edit[])=>void=()=>{};
@@ -52,20 +55,22 @@ export class VoxelWorld {
   get loadedCount(): number { return this.chunks.size; }
   get pendingCount(): number { return this.pending.size; }
   get seed(): number { return this.generator.seed; }
-  get storageSeed():number|string{return this.generator.realm==='veil'?`veil:${this.seed}`:this.seed;}
+  get storageSeed():number|string{return this.generator.realm==='veil'?`veil:${this.worldId}`:this.worldId;}
   private clear(): void {
     this.epoch++;
     for(const chunk of this.chunks.values()) { this.group.remove(chunk.group); disposeChunk(chunk.group); }
-    this.chunks.clear(); this.pending.clear(); this.edits.clear(); this.fallCandidates.clear();
+    this.chunks.clear(); this.pending.clear(); this.edits.clear();this.editsByChunk.clear(); this.fallCandidates.clear();
+    this.scanClock=1;this.lastScanX=this.lastScanZ=Number.NaN;
   }
-  async configure(seed: number,renderDistance: number,px=0,pz=0,realm:'overworld'|'veil'='overworld'): Promise<void> {
+  async configure(seed: number,renderDistance: number,px=0,pz=0,realm:'overworld'|'veil'='overworld',worldId:number|string=seed): Promise<void> {
     this.clear(); const epoch=this.epoch;
+    this.worldId=worldId;
     this.generator=new WorldGenerator(seed|0,realm);
     this.renderDistance=Math.max(2,Math.min(6,renderDistance|0));
     this.centerX=floorDiv(px,SIZE); this.centerZ=floorDiv(pz,SIZE);
     const edits=await this.store.load(this.storageSeed);
     if(epoch!==this.epoch) return;
-    for(const edit of edits) if(edit.y>=0 && edit.y<HEIGHT) this.edits.set(editKey(edit.x,edit.y,edit.z),edit);
+    for(const edit of edits) if(edit.y>=0 && edit.y<HEIGHT){this.edits.set(editKey(edit.x,edit.y,edit.z),edit);this.indexEdit(edit);}
     this.install(this.generator.generate(this.centerX,this.centerZ));
   }
   spawn(): THREE.Vector3 {
@@ -88,9 +93,17 @@ export class VoxelWorld {
     return fallback ?? new THREE.Vector3(0,this.generator.surfaceHeight(0,0)+3,0);
   }
   private applyEdits(data: ChunkData): void {
-    const minX=data.cx*SIZE-1,maxX=(data.cx+1)*SIZE,minZ=data.cz*SIZE-1,maxZ=(data.cz+1)*SIZE;
-    for(const edit of this.edits.values()) if(edit.x>=minX&&edit.x<=maxX&&edit.z>=minZ&&edit.z<=maxZ)
-      data.set(edit.x-data.cx*SIZE,edit.y,edit.z-data.cz*SIZE,edit.state.type,edit.state.properties);
+    for(const editId of this.editsByChunk.get(key(data.cx,data.cz))||[]){const edit=this.edits.get(editId)!;
+      data.set(edit.x-data.cx*SIZE,edit.y,edit.z-data.cz*SIZE,edit.state.type,edit.state.properties);}
+  }
+  private indexEdit(edit:Edit):void{
+    const id=editKey(edit.x,edit.y,edit.z),cx=floorDiv(edit.x,SIZE),cz=floorDiv(edit.z,SIZE);
+    for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){
+      const localX=edit.x-(cx+dx)*SIZE,localZ=edit.z-(cz+dz)*SIZE;
+      if(localX< -1||localX>SIZE||localZ< -1||localZ>SIZE)continue;
+      const chunkKey=key(cx+dx,cz+dz);let set=this.editsByChunk.get(chunkKey);
+      if(!set){set=new Set();this.editsByChunk.set(chunkKey,set);}set.add(id);
+    }
   }
   private install(data: ChunkData): void {
     const k=key(data.cx,data.cz); if(this.chunks.has(k)) return;
@@ -113,6 +126,10 @@ export class VoxelWorld {
   }
   update(px: number,pz: number,delta: number): void {
     this.centerX=floorDiv(px,SIZE); this.centerZ=floorDiv(pz,SIZE);
+    this.fallClock+=delta;if(this.fallClock>=.14){this.fallClock=0;this.stepGravity();}
+    this.scanClock+=delta;
+    if(this.centerX===this.lastScanX&&this.centerZ===this.lastScanZ&&this.scanClock<.15)return;
+    this.lastScanX=this.centerX;this.lastScanZ=this.centerZ;this.scanClock=0;
     for(const [k,chunk] of this.chunks) if(distance(chunk.data.cx,chunk.data.cz,this.centerX,this.centerZ)>this.renderDistance+1) {
       this.group.remove(chunk.group); disposeChunk(chunk.group); this.chunks.delete(k);
     }
@@ -131,8 +148,6 @@ export class VoxelWorld {
     if(!this.workers.length && candidates.length) {
       const [cx,cz]=candidates[0]!; this.install(this.generator.generate(cx,cz));
     }
-    this.fallClock+=delta;
-    if(this.fallClock>=.14) { this.fallClock=0; this.stepGravity(); }
   }
   isLoaded(x: number,z: number): boolean { return this.chunks.has(key(floorDiv(x,SIZE),floorDiv(z,SIZE))); }
   ensureLoaded(x:number,z:number):void{const cx=floorDiv(x,SIZE),cz=floorDiv(z,SIZE);if(!this.chunks.has(key(cx,cz)))this.install(this.generator.generate(cx,cz));}
@@ -140,7 +155,8 @@ export class VoxelWorld {
     const chunk=this.chunks.get(key(floorDiv(x,SIZE),floorDiv(z,SIZE)));
     return chunk?.data.getState(x-chunk.data.cx*SIZE,y,z-chunk.data.cz*SIZE) ?? air;
   }
-  get(x: number,y: number,z: number): Block { return this.getState(x,y,z).type; }
+  get(x: number,y: number,z: number): Block {const chunk=this.chunks.get(key(floorDiv(x,SIZE),floorDiv(z,SIZE)));
+    return chunk?.data.get(x-chunk.data.cx*SIZE,y,z-chunk.data.cz*SIZE)??Block.Air;}
   private rebuild(cx: number,cz: number): void {
     const chunk=this.chunks.get(key(cx,cz)); if(!chunk) return;
     this.group.remove(chunk.group); disposeChunk(chunk.group);
@@ -151,6 +167,7 @@ export class VoxelWorld {
     const rebuild=new Set<string>();
     for(const edit of changes) {
       this.edits.set(editKey(edit.x,edit.y,edit.z),edit);
+      this.indexEdit(edit);
       const cx=floorDiv(edit.x,SIZE),cz=floorDiv(edit.z,SIZE);
       for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++) {
         const chunk=this.chunks.get(key(cx+dx,cz+dz)); if(!chunk) continue;

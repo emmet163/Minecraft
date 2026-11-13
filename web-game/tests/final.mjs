@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import {launchTestBrowser} from './launch.mjs';
+
+const browser=await launchTestBrowser();
+const context=await browser.newContext({viewport:{width:1280,height:720}}),page=await context.newPage(),errors=[];
+page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+const base=process.env.STONEWAKE_URL||'http://127.0.0.1:5173/';
+try{
+  const url=new URL(base);url.searchParams.set('test','1');await page.goto(url.href,{waitUntil:'networkidle'});
+  await page.waitForFunction(()=>window.__stonewakeGame?.loaded);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.worldInfo.id),12345);
+  await page.locator('#new-world-name').fill('Final Test World');
+  await page.locator('#seed').fill('12345');await page.locator('#difficulty').selectOption('hard');
+  await page.locator('#new-world').click();
+  await page.waitForFunction(()=>window.__stonewakeGame?.worldInfo.name==='Final Test World'&&window.__stonewakeGame.loaded);
+  const id=await page.evaluate(()=>window.__stonewakeGame.worldInfo.id);
+  assert.equal(typeof id,'string');
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.life.difficulty),'hard');
+  const cell=await page.evaluate(async()=>{const game=window.__stonewakeGame,p=game.player.position;
+    const x=Math.round(p.x)+3,z=Math.round(p.z),y=85;game.world.ensureLoaded(x,z);
+    if(!await game.world.apply([{x,y,z,state:{type:19,properties:0}}]))throw Error('World edit failed');
+    game.items.slots.set(10,{id:'berries',count:5,damage:0});game.life.health=14;game.life.hunger=16;
+    await game.saveNow();await game.saveNow();return {x,y,z};});
+  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.__stonewakeGame?.loaded);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.worldInfo.id),id);
+  assert.deepEqual(await page.evaluate(([x,y,z])=>{const game=window.__stonewakeGame;return [game.world.get(x,y,z),game.life.health,game.life.hunger,game.items.slots.get(10).count];},[cell.x,cell.y,cell.z]),[19,14,16,5]);
+  await page.locator('#world-list').selectOption('12345');await page.locator('#load-world').click();
+  await page.waitForFunction(()=>window.__stonewakeGame?.worldInfo.id===12345&&window.__stonewakeGame.loaded);
+  assert.notEqual(await page.evaluate(([x,y,z])=>{const game=window.__stonewakeGame;game.world.ensureLoaded(x,z);return game.world.get(x,y,z);},[cell.x,cell.y,cell.z]),19);
+  await page.locator('#world-list').selectOption(id);await page.locator('#load-world').click();
+  await page.waitForFunction(expected=>window.__stonewakeGame?.worldInfo.id===expected&&window.__stonewakeGame.loaded,id);
+  assert.equal(await page.evaluate(([x,y,z])=>window.__stonewakeGame.world.get(x,y,z),[cell.x,cell.y,cell.z]),19);
+  await page.evaluate(async id=>{const request=indexedDB.open('stonewake-web-edits',2);
+    const db=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+    await new Promise((resolve,reject)=>{const tx=db.transaction('players','readwrite'),store=tx.objectStore('players'),get=store.get(id);
+      get.onsuccess=()=>{const record=get.result;record.save={version:99};store.put(record);};
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();},id);
+  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.__stonewakeGame?.loaded);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.life.health),14);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.items.slots.get(10).count),5);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.saveBlocked),false);
+  await page.evaluate(id=>localStorage.setItem('stonewake-web-settings',JSON.stringify({worldId:id,seed:'bad',distance:'bad',sensitivity:null,audio:null})),id);
+  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.__stonewakeGame?.loaded);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.worldInfo.id),id);
+  assert.equal(await page.evaluate(()=>window.__stonewakeGame.player.sensitivity),.18);
+  assert.deepEqual(errors,[]);
+  console.log('FINAL WORLD PASS: named world, same-seed isolation, difficulty, inventory/health/edit reload, world switching, corrupt-save backup recovery, malformed-settings fallback; no browser errors');
+}finally{await browser.close();}

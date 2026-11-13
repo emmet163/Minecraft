@@ -1,5 +1,29 @@
 # Stonewake web test report
 
+## Phase 10 — final reliability and deployment review (2026-11-13)
+
+**Starting point:** Commit `22fae93` (Phase 9); the unrelated `preview-site/` was untracked and left untouched. Before edits, strict TypeScript checking, 39 Vitest tests in seven files, and the production build passed. The browser architecture, persistence, chunks, inventory, crafting, creatures, combat, UI, and prior reports were inspected.
+
+**Changes reviewed:** Named worlds with isolated saves even for matching seeds; create/load menu; saved world name, seed, difficulty, and mode; Peaceful/Normal/Hard rules; stronger validation of player saves and recovery from the previous valid player snapshot; safe fallback for malformed local settings; indexed chunk edits and reduced chunk scan/temporary allocations; shared pickup rendering resources; lower-frequency HUD updates; cross-platform Playwright launcher; static Vercel configuration and original favicon. Existing realm, inventory, survival, and test fixtures remain in use. Diff and whitespace checks were reviewed.
+
+| Executed check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 42 tests in eight files, including named-world isolation, backup validation, chunk-boundary/realm edits, and difficulty. |
+| `npm run build` | Passed: `dist/index.html` 0.47 kB, main JS 666.00 kB (178.04 kB gzip), CSS 9.26 kB (2.83 kB gzip), worker 10.83 kB. Vite's 500 kB chunk advisory remains. |
+| `test:final` on dev | Passed: named world creation, same-seed isolation, difficulty, inventory/health/edit reload, world switching, corrupt-primary player-save recovery, malformed-settings fallback; no console/page errors. |
+| `test:integration` on dev | Passed: movement, jump, mining, crafting, equipment, fall damage, food, death, bed respawn, Creative flight, IndexedDB reload; no browser errors. |
+| `test:stations`, `test:creatures`, `test:exploration`, `test:advanced`, `test:visuals` on dev | All passed on final rerun. Covered chest/furnace/crafting/bed; spawns/AI/combat/drops/XP; village/loot/trading; fluids/circuits/farming/vehicles/Veil; quality/audio settings and scene captures. No console/page errors reported. |
+| `test:browser` on built preview | Passed: WebGL launch, pointer lock, movement, mining, placement, saved edit reload, pause; no browser errors. An early sample observed 13 chunks; the separate performance test waited for 25. |
+| `test:performance` on built preview | Passed with 25 chunks loaded and no browser errors. See measured frame intervals below. |
+| Production assets | Built HTML, JS, CSS, and favicon served HTTP 200; HTML references `./assets/` paths. |
+
+**Measured performance:** Headless Microsoft Edge using SwiftShader, Low quality, built preview, 25 chunks: at 1280×720, 20-frame mean requestAnimationFrame interval 133.1 ms, maximum 140.4 ms, JS heap 27.5 MB; at 1920×1080, mean 250.8 ms, maximum 487.1 ms, heap 21.3 MB. These are short software-rendered frame intervals, not FPS on a native GPU or total browser memory. The 60 FPS at 1080p target was not demonstrated. The final 24-creature dev stress run measured 163.3 ms mean/211.6 ms maximum and 22.2 MB JS heap; the advanced journey measured 32.8 ms mean/75.9 ms maximum and 41.1 MB JS heap in a different scene. Samples are workload dependent.
+
+**Bugs found and fixed:** A fixed 2.6-second mining assertion and a 50 ms frame-delta cap were unreliable under slow headless rendering; the test now waits for the actual saved edit and gameplay uses a bounded 120 ms delta. Corrupt player saves now recover from a valid previous snapshot; malformed settings fall back to defaults. Chunk streaming no longer checks every edit on every chunk update. All failed browser checks were rerun successfully after fixes.
+
+**Verification limits:** The complete 16-step user journey was covered across browser suites, not in one uninterrupted manual play session. No native GPU, sustained 60 FPS, long-session memory/leak, other browser engine, mobile/touch, speaker audio, or live Vercel deployment was verified. Backup covers player state only; terrain edits use separate transactions. The original Godot project was not changed.
+
 ## Phase 9 — graphics, animation, audio, and polish (2026-11-13)
 
 **Baseline before edits:** Git showed only the unrelated untracked `preview-site/`; the latest Phase 8 checkpoint was `d946d44`. TypeScript type checking passed, 36 Vitest tests in six files passed, and the production build passed. The existing renderer, atlas, chunk disposal, weather particles, creature animation, audio, lighting, HUD, and settings were inspected before changes.
