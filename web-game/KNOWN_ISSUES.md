@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Phase 9 additions
+
+- **Performance:** Medium soft shadows averaged 193.1–210.4 ms between animation frames in short headless Edge/SwiftShader runs. A separate built-preview run had one unexplained 286-second frame wait, although the gameplay assertions passed; other 25-chunk runs measured about 124–126 ms mean. Low quality is the default; High quality shadow performance was not measured. Native GPU frame rates and long-session memory use remain unverified. The main Vite JS chunk is 657.14 kB and exceeds the 500 kB advisory.
+- **Visual scope:** The new water material adds specular highlights but does not simulate waves, reflection, or refraction. Ambient shading samples the existing one-block chunk padding, so corner shade may vary subtly at chunk borders. Biome motes are a local visual effect; rain and snow can still appear under roofs. Four nearby powered lamps receive point lights, matching the existing light limit.
+- **Audio and animation:** Audio is synthesized locally after a user gesture. Music is a short optional loop and starts muted. Audible sound quality, speaker balance, and browser audio behavior beyond headless Edge were not verified. Camera-local hand and creature animations are intentionally simple voxel motions, with distant creature animation already paused by the AI distance limit.
+- **Browser coverage:** Quality and volume controls, screenshots, and rendering were checked in headless Edge at 1280×720. High quality was switched on but not profiled visually or for frame rate. Mobile layout, assistive technology, and other browser engines remain unverified.
+
 ## Phase 8 additions
 
 - **Fluids:** Water and lava update in bounded batches around edits and continue when adjacent chunks load. Large open shafts can create many saved flow cells and may cause mesh rebuild spikes. Fluids do not model pressure, currents, swimming or buoyancy. Naturally generated seas and lava pools begin spreading when a nearby block changes.

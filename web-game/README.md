@@ -29,6 +29,7 @@ npm run test:stations
 npm run test:creatures
 npm run test:exploration
 npm run test:advanced
+npm run test:visuals
 ```
 
 Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview.
@@ -51,7 +52,7 @@ Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the pro
 | Trade with a targeted inhabitant | Right mouse |
 | Pause and release mouse | Escape |
 
-The pause menu sets the world seed, render distance, mouse sensitivity, and Survival or Creative mode. In Creative mode, choose a block from the inventory palette. Right-click a crafting station, chest, furnace, door, or bed to use it. Inventory slots support left-click transfers and right-click splitting or placing one item. The first nine of 36 inventory slots form the hotbar. The inventory also contains equipment slots, a personal 2×2 grid, and a recipe guide; a crafting station provides a 3×3 grid.
+The pause menu sets the world seed, render distance, mouse sensitivity, graphics quality, effects/ambience/music volume, and Survival or Creative mode. In Creative mode, choose a block from the inventory palette. Right-click a crafting station, chest, furnace, door, or bed to use it. Inventory slots support left-click transfers and right-click splitting or placing one item. The first nine of 36 inventory slots form the hotbar. The inventory also contains equipment slots, a personal 2×2 grid, and a recipe guide; a crafting station provides a 3×3 grid.
 
 ## World and saves
 
@@ -75,12 +76,18 @@ Place cultivated soil near water for irrigation, then plant Sungrain or Berry Se
 
 Sunsteel upgrades and three tonics extend equipment progression. Use a selected tonic with **F** for speed, damage reduction or immediate healing. A Veil Gate crafted from Overworld treasure opens the alternate **Veil** realm on right-click. The Veil has original terrain, Gleam Ore, Veil Crystals, lava pools and hostile Veil Shades. Right-click a gate to return. The Overworld and Veil keep separate terrain edits under the same world seed.
 
+## Graphics and sound (Phase 9)
+
+An original procedural 32-pixel block atlas gives terrain a consistent textured style. Chunk meshes use per-corner ambient shading; water has a specular material, lava has emissive color, and powered lamps use their bright atlas tile and local light. The sky changes through the day and night, including stars after dark, with biome-tinted fog and floating particles in forests, deserts, and swamps. Rain and snow particles remain weather dependent. A camera-local voxel hand or tool swings for mining and combat, bobs while moving, and recoils on damage. Pooled fragments mark impacts; nearby creatures animate their legs, heads, and bodies.
+
+The pause menu offers **Low**, **Medium**, and **High** graphics presets. Low is the default and disables shadow maps for better software-rendered performance. Medium and High enable soft sunlight shadows at 1024 and 2048 pixels. Render distance remains independently adjustable. Effects, ambience, and original synthesized background music have separate volume sliders; music starts muted. Browser sound begins only after a click or other game interaction. The menu, inventory, hotbar, and HUD have updated styling and visible keyboard focus.
+
 ## Saves
 
-IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, spawn point, discovered landmarks, generated treasure, trade stock, deceased inhabitants or dungeon guards, vehicles, effects and realm positions. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control and world settings. Saved Godot `user://` files are not imported.
+IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, spawn point, discovered landmarks, generated treasure, trade stock, deceased inhabitants or dungeon guards, vehicles, effects and realm positions. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control, world, graphics, and audio settings. Saved Godot `user://` files are not imported.
 
 ## Deploy to Vercel
 
-Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No Phase 8 deployment was performed.
+Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No Phase 9 deployment was performed.
 
 See [MIGRATION_REPORT.md](MIGRATION_REPORT.md), [TEST_REPORT.md](TEST_REPORT.md), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for verified coverage and limits.

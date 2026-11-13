@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import './ui/phase7.css';
 import './ui/phase8.css';
+import './ui/phase9.css';
 import {Block,blockNames,dropType,isReplaceable,isSolid,state} from './world/blocks';
 import {VoxelWorld} from './world/world';
 import {IndexedDbEditStore,type GameSave} from './persistence/edits';
@@ -12,6 +13,11 @@ import {InventoryView,type InventoryMode} from './ui/inventory';
 import {HEIGHT} from './world/chunk';
 import {BlockSounds} from './render/sounds';
 import {WeatherVisual} from './render/weather';
+import {SkyDome} from './render/sky';
+import {FirstPersonView} from './render/first_person';
+import {BurstParticles} from './render/particles';
+import {parseQuality,qualityPreset,type Quality} from './render/quality';
+import {audioLevel,type AudioSettings} from './render/sounds';
 import {GameItems,blockItem,isEmpty,item,stack,empty,type Stack} from './items/items';
 import {SurvivalState,WorldCycle,type Mode} from './survival/state';
 import {Biome} from './world/generator';
@@ -47,16 +53,19 @@ class Game{
   readonly lampLights=Array.from({length:4},()=>new THREE.PointLight('#ffe5a0',0,9));
   readonly litLamps=new Map<string,[number,number,number]>();
   readonly clock=new THREE.Clock();readonly sounds=new BlockSounds();readonly weather=new WeatherVisual();
+  readonly sky=new SkyDome();readonly firstPerson=new FirstPersonView(this.player.camera);readonly particles=new BurstParticles();
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
   paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
-  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;
+  private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;private stepClock=0;
+  quality:Quality='low';private visualConfigured=false;
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
-    this.scene.add(this.ambient,this.sun,this.moon,this.world.group,this.player.object,this.outline,this.weather.group,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;
+    this.scene.add(this.ambient,this.sun,this.sun.target,this.moon,this.sky.mesh,this.world.group,this.player.object,this.outline,this.weather.group,this.particles.mesh,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;
+    this.sun.shadow.camera.left=-48;this.sun.shadow.camera.right=48;this.sun.shadow.camera.top=48;this.sun.shadow.camera.bottom=-48;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=240;this.sun.shadow.bias=-.00025;
     this.advancedInfo.id='advanced-info';this.hud.root.append(this.advancedInfo);
     this.world.onEdits=edits=>{this.fluids.changed(edits);this.automation.changed(edits);this.farming.changed(edits);this.trackLamps(edits);};
     this.world.onChunkInstalled=(cx,cz)=>this.fluids.chunkInstalled(cx,cz);
@@ -70,8 +79,9 @@ class Game{
       this.player.knockback.set(dx/length*4,0,dz/length*4);this.takeDamage(actual);this.hud.renderHotbar(this.life);};
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.resize();window.addEventListener('resize',()=>this.resize());
-    this.hud.onResume=()=>{void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
+    this.hud.onResume=()=>{this.sounds.unlock();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
     this.hud.onSettings=(seed,distance,sensitivity)=>void this.changeSettings(seed,distance,sensitivity);
+    this.hud.onVisualSettings=(quality,audio)=>this.applyVisualSettings(quality,audio);
     this.hud.onMode=mode=>this.setMode(mode);this.hud.onRespawn=()=>this.respawn();
     this.inventory.onClose=()=>{void this.saveNow();this.hud.renderHotbar(this.life);void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
     this.inventory.onChange=()=>{this.hud.renderHotbar(this.life);void this.saveNow();};
@@ -81,7 +91,7 @@ class Game{
     this.trade.onChange=()=>{this.hud.renderHotbar(this.life);void this.saveNow();};
     this.navigation.onClose=()=>{void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
     this.navigation.onTrack=()=>void this.saveNow();
-    this.hud.canvas.addEventListener('click',()=>{if(this.paused&&!this.life.dead)void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));});
+    this.hud.canvas.addEventListener('click',()=>{this.sounds.unlock();if(this.paused&&!this.life.dead)void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));});
     document.addEventListener('pointerlockchange',()=>{
       if(this.inventory.open||this.trade.open||this.navigation.open)return;
       this.setPaused(document.pointerLockElement!==this.hud.canvas);
@@ -99,6 +109,19 @@ class Game{
     this.player.onLand=distance=>{if(distance>4)this.takeDamage((distance-3)*1.5);};
   }
   private resize(){const w=window.innerWidth,h=window.innerHeight;this.renderer.setSize(w,h,false);this.player.camera.aspect=w/h;this.player.camera.updateProjectionMatrix();}
+  private persistSettings(seed=this.world.seed,distance=this.world.renderDistance,sensitivity=this.player.sensitivity){
+    try{localStorage.setItem(settingsKey,JSON.stringify({seed,distance,sensitivity,quality:this.quality,audio:this.sounds.settings}));}
+    catch{this.hud.showNotice('Settings cannot be saved in this browser');}}
+  private applyVisualSettings(quality:Quality,audio:AudioSettings){
+    const selected=parseQuality(quality);
+    if(!this.visualConfigured||selected!==this.quality){this.quality=selected;this.visualConfigured=true;const preset=qualityPreset(selected);
+      this.renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));
+      this.renderer.shadowMap.enabled=preset.shadows;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+      this.sun.castShadow=preset.shadows;this.sun.shadow.mapSize.set(preset.shadowSize||1,preset.shadowSize||1);
+      this.sun.shadow.map?.dispose();this.sun.shadow.map=null;this.world.setShadows(preset.shadows);
+      this.weather.density=preset.weather;}
+    this.sounds.setSettings(audio);this.persistSettings();
+  }
   private trackLamps(edits:ReadonlyArray<{x:number;y:number;z:number;state:{type:Block;properties:number}}>){for(const edit of edits){const key=cellKey(edit.x,edit.y,edit.z);
     if(edit.state.type===Block.Lamp&&(edit.state.properties&16))this.litLamps.set(key,[edit.x,edit.y,edit.z]);else this.litLamps.delete(key);}}
   private updateLampLights(){const p=this.player.position,near=[...this.litLamps.values()].filter(([x,y,z])=>(x-p.x)**2+(y-p.y)**2+(z-p.z)**2<24**2)
@@ -122,7 +145,7 @@ class Game{
     else this.player.keys.add(event.code);
     if(['Space','ArrowUp','ArrowDown'].includes(event.code))event.preventDefault();
   }
-  private mouseDown(event:MouseEvent){if(this.paused||this.inventory.open||this.trade.open||this.navigation.open||this.life.dead)return;if(event.button===0)this.leftHeld=true;if(event.button===2)void this.place();}
+  private mouseDown(event:MouseEvent){if(this.paused||this.inventory.open||this.trade.open||this.navigation.open||this.life.dead)return;if(event.button===0){this.leftHeld=true;this.firstPerson.triggerSwing();}if(event.button===2)void this.place();}
   private seedChestLoot(key:string){if(this.items.chests.has(key)||this.items.generatedLoot.has(key))return;
     const [x,y,z]=key.split(',').map(Number),site=this.world.generator.structures.lootSite(x!,y!,z!);
     if(!site)return;this.items.chest(key).load(lootFor(site,this.world.seed));this.items.generatedLoot.add(key);void this.saveNow();
@@ -146,7 +169,7 @@ class Game{
   private async changeSettings(seed:number,distance:number,sensitivity:number):Promise<void>{
     if(!Number.isFinite(seed)||!Number.isFinite(sensitivity))return;
     this.player.sensitivity=Math.max(.03,Math.min(.5,sensitivity));
-    try{localStorage.setItem(settingsKey,JSON.stringify({seed,distance,sensitivity:this.player.sensitivity}));}catch{this.hud.showNotice('Settings cannot be saved in this browser');}
+    this.persistSettings(seed,distance,this.player.sensitivity);
     if(this.loaded&&seed===this.world.seed&&distance===this.world.renderDistance){void this.saveNow();return;}
     await this.saveNow();this.loaded=false;this.saveBlocked=false;this.hud.showNotice('Loading world…');
     const saved=await this.store.loadGame(seed);
@@ -173,8 +196,11 @@ class Game{
     this.updateAdvancedInfo();
     this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);
   }
-  async start(){let settings={seed:12345,distance:2,sensitivity:.18};try{settings={...settings,...JSON.parse(localStorage.getItem(settingsKey)||'{}')};}catch{/* defaults */}
-    this.hud.setSettings(settings.seed,settings.distance,settings.sensitivity);await this.changeSettings(settings.seed,settings.distance,settings.sensitivity);this.running=true;this.frame();}
+  async start(){let settings={seed:12345,distance:2,sensitivity:.18,quality:'low' as Quality,audio:{effects:.7,ambience:.45,music:0}};
+    try{settings={...settings,...JSON.parse(localStorage.getItem(settingsKey)||'{}')};}catch{/* defaults */}
+    const audio={effects:audioLevel(settings.audio?.effects),ambience:audioLevel(settings.audio?.ambience),music:audioLevel(settings.audio?.music)};
+    this.hud.setSettings(settings.seed,settings.distance,settings.sensitivity);this.hud.setVisualSettings(parseQuality(settings.quality),audio);
+    this.applyVisualSettings(parseQuality(settings.quality),audio);await this.changeSettings(settings.seed,settings.distance,settings.sensitivity);this.running=true;this.frame();}
   private setMode(mode:Mode){if(this.life.dead)return;this.life.setMode(mode);this.player.setFlight(mode==='creative');this.hud.setMode(mode);this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);void this.saveNow();}
   private useSelected(){if(this.life.mode==='creative'||this.life.dead)return;const held=this.items.selectedStack();if(isEmpty(held))return;
     if(this.effects.use(held.id)||held.id==='mend_tonic'){if(held.id==='mend_tonic')this.life.heal(8);
@@ -207,7 +233,7 @@ class Game{
       this.hud.showNotice(`Realm travel failed: ${String(error)}`);
     }finally{this.loaded=true;this.paused=wasPaused;this.editBusy=false;void this.saveNow();}
   }
-  private takeDamage(amount:number){if(this.life.damage(this.effects.reduceDamage(amount))){this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
+  private takeDamage(amount:number){if(this.life.damage(this.effects.reduceDamage(amount))){this.sounds.hurt();this.firstPerson.triggerHurt();this.hud.setSurvival(this.life,this.cycle,this.isSnowing());if(this.life.dead)this.enterDeath();else void this.saveNow();}}
   private enterDeath(){this.leftHeld=false;this.vehicles.mounted=null;this.player.velocity.set(0,0,0);if(this.inventory.open){this.inventory.open=false;this.inventory.overlay.classList.add('hidden');}
     if(this.trade.open){this.trade.open=false;this.trade.overlay.classList.add('hidden');}
     if(this.navigation.open){this.navigation.open=false;this.navigation.overlay.classList.add('hidden');}
@@ -252,11 +278,11 @@ class Game{
       this.spawnItem(stack(blockItem(dropType(hitState.type)),mature?2:1),new THREE.Vector3(x,y+.4,z));
       if(mature)this.spawnItem(stack(hitState.type===Block.WheatCrop?'sungrain':'berries',2),new THREE.Vector3(x,y+.4,z));
       this.life.experience+=[Block.Coal,Block.Copper,Block.Iron,Block.Gold].includes(hitState.type)?2:1;}
-      this.releaseContainer(hitState.type,cellKey(x,low,z),new THREE.Vector3(x,y+1,z));this.sounds.play(true);this.hud.showNotice(`Mined ${blockNames[hitState.type]}`);this.hud.renderHotbar(this.life);void this.saveNow();}
+      this.releaseContainer(hitState.type,cellKey(x,low,z),new THREE.Vector3(x,y+1,z));this.sounds.play(true);this.particles.burst(new THREE.Vector3(x,y,z));this.firstPerson.triggerSwing();this.hud.showNotice(`Mined ${blockNames[hitState.type]}`);this.hud.renderHotbar(this.life);void this.saveNow();}
     this.editBusy=false;this.miningTime=0;this.miningKey='';this.hud.setProgress(0);
   }
   private attackCreature(){const c=this.creatureTarget;if(!c||this.attackClock>0)return;this.attackClock=.48;
-    if(this.creatures.hit(c,meleeDamage(this.items),this.player.position)){wearWeapon(this.items);this.hud.renderHotbar(this.life);
+    if(this.creatures.hit(c,meleeDamage(this.items),this.player.position)){this.sounds.creature();this.particles.burst(c.position,8);this.firstPerson.triggerSwing();wearWeapon(this.items);this.hud.renderHotbar(this.life);
       if(c.alive)this.hud.showNotice(`Hit ${c.def.name} · ${Math.ceil(c.health)} HP`);void this.saveNow();}
   }
   private async place(){if(this.creatureTarget?.inhabitant){this.openTrade(this.creatureTarget);return;}
@@ -300,7 +326,8 @@ class Game{
   private isSnowing(){const p=this.player.position;return this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z))===Biome.Snow;}
   private outdoors(){const p=this.player.position;return p.y>=this.world.generator.surfaceHeight(Math.round(p.x),Math.round(p.z))+1;}
   private updateSurvival(delta:number){const previous=this.cycle.flash;this.cycle.tick(delta);const snow=this.isSnowing();
-    this.weather.update(this.player.position,this.cycle.weather,snow,this.cycle.intensity,delta);
+    this.weather.update(this.player.position,this.cycle.weather,snow,this.cycle.intensity,delta,this.world.generator.biomeAt(Math.round(this.player.position.x),Math.round(this.player.position.z)));
+    this.sounds.setWeather(this.cycle.weather==='clear'?0:this.cycle.intensity);
     if(previous<.9&&this.cycle.flash>=.9){this.sounds.thunder();if(this.outdoors()&&!this.life.dead)this.takeDamage(2);}
     if(!this.life.dead){const p=this.player.position,camera=this.player.camera,head=this.world.get(Math.round(p.x),Math.round(p.y+camera.position.y),Math.round(p.z));
       const chest=this.world.get(Math.round(p.x),Math.round(p.y+1),Math.round(p.z));const biome=this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z));
@@ -316,15 +343,26 @@ class Game{
   private updateLighting(){const daylight=this.cycle.daylight,storm=this.cycle.intensity*(this.cycle.weather==='storm'?.35:.13);
     const b=THREE.MathUtils.clamp(daylight*(1-storm)+this.cycle.flash*.5,0,1);
     this.sun.intensity=.02+b*2.3;this.moon.intensity=.06+(1-daylight)*.5;this.ambient.intensity=.4+b*1.8;
-    this.sun.position.set(Math.cos(this.cycle.time*Math.PI*2)*85,Math.sin(this.cycle.time*Math.PI*2)*95,35);
-    const sky=this.realm==='veil'?new THREE.Color('#1c1035').lerp(new THREE.Color('#75589a'),b*.6):new THREE.Color('#0d1832').lerp(new THREE.Color('#91bde3'),b);
-    (this.scene.background as THREE.Color).copy(sky);(this.scene.fog as THREE.Fog).color.copy(sky);
+    const sunX=Math.cos(this.cycle.time*Math.PI*2)*85,sunY=Math.sin(this.cycle.time*Math.PI*2)*95;
+    this.sun.position.set(this.player.position.x+sunX,this.player.position.y+sunY,this.player.position.z+35);
+    this.sun.target.position.copy(this.player.position);this.sun.target.updateMatrixWorld();
+    const sky=this.realm==='veil'?new THREE.Color('#322653').lerp(new THREE.Color('#75589a'),b*.6):new THREE.Color('#263e67').lerp(new THREE.Color('#91bde3'),b);
+    const biome=this.world.generator.biomeAt(Math.round(this.player.position.x),Math.round(this.player.position.z));
+    const horizon=sky.clone().lerp(new THREE.Color(biome===Biome.Desert?'#e6bd92':biome===Biome.Swamp?'#8baf9c':biome===Biome.Snow?'#d2e1ed':'#b6c7bf'),b*.65);
+    (this.scene.background as THREE.Color).copy(sky);(this.scene.fog as THREE.Fog).color.copy(horizon);
+    this.sky.update(this.player.position,sky,horizon,sky.clone().multiplyScalar(.55),new THREE.Vector3(sunX,sunY,35),b);
   }
   private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.05);
     if(!this.paused){
       this.attackClock=Math.max(0,this.attackClock-delta);
       if(!this.inventory.open&&!this.trade.open&&!this.navigation.open&&!this.life.dead){
         if(!this.vehicles.tick(delta,this.player.keys,this.player.yaw,this.player.position))this.player.update(delta);
+        const moving=[...'WASD'].some(key=>this.player.keys.has(`Key${key}`));
+        const sprinting=this.player.keys.has('ShiftLeft')||this.player.keys.has('ShiftRight');
+        const equipped=this.items.equipment.get(3),held=this.items.selectedStack();
+        const viewTool=this.items.tool==='hand'&&(!isEmpty(equipped)||!isEmpty(held)&&!!item(held.id).attack)?'weapon':this.items.tool;
+        this.firstPerson.setTool(viewTool);this.firstPerson.update(delta,moving,sprinting,this.leftHeld&&!!this.target);
+        if(moving&&this.player.grounded){this.stepClock+=delta;if(this.stepClock>(sprinting?.32:.46)){this.stepClock=0;this.sounds.footstep();}}else this.stepClock=0;
         this.updateTarget();
         const hit=this.target,k=hit?cellKey(hit.x,hit.y,hit.z):'';
         if(this.leftHeld&&this.creatureTarget){this.attackCreature();this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
@@ -339,6 +377,7 @@ class Game{
       this.effects.tick(delta);this.player.speedMultiplier=this.effects.swift>0?1.45:1;
       for(const furnace of this.items.furnaces.values())furnace.tick(delta);
       this.updateSurvival(delta);
+      this.sky.mesh.position.copy(this.player.position);this.particles.update(delta);
       this.villageClock+=delta;if(this.villageClock>=1.5){this.villageClock=0;
         for(const site of this.world.generator.structures.nearby(this.player.position.x,this.player.position.z,42)){
           this.creatures.ensureVillage(site,this.villages.deceased);

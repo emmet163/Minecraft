@@ -1,4 +1,25 @@
-# Phase 5.5B test report
+# Stonewake web test report
+
+## Phase 9 — graphics, animation, audio, and polish (2026-11-13)
+
+**Baseline before edits:** Git showed only the unrelated untracked `preview-site/`; the latest Phase 8 checkpoint was `d946d44`. TypeScript type checking passed, 36 Vitest tests in six files passed, and the production build passed. The existing renderer, atlas, chunk disposal, weather particles, creature animation, audio, lighting, HUD, and settings were inspected before changes.
+
+**Implemented and reviewed:** A deterministic original 256×256 procedural atlas with 32-pixel tiles; per-vertex ambient shading; separate specular water and emissive lava materials; a bright powered-lamp tile; adjustable soft sunlight shadows; a shader sky with day/night gradient and night stars; biome-tinted fog and clear-weather motes; camera-local hand/tool motion, swing, recoil, and pooled block/creature fragments; expanded nearby creature animation; synthesized footsteps, impact, creature, weather, and optional music audio; saved quality and audio controls; and refreshed, focus-visible menus and HUD. Terrain materials and chunk geometries remain shared/disposed through the existing world lifecycle. All new and changed source, browser tests, styles, and documentation were reviewed with `git diff --check` and targeted reads.
+
+| Check | Result |
+| --- | --- |
+| Final `npm run build` (includes TypeScript) | Passed. `dist/` emitted: main JS 657.14 kB (175.62 kB gzip), CSS 8.85 kB (2.74 kB gzip), worker 10.83 kB. Vite's 500 kB advisory remains. |
+| Final `npm test` | 39 passed in seven files, including three new graphics/settings tests. |
+| `test:browser` on built preview | Passed: WebGL scene, 25 chunks, pointer lock, movement, mining, placement, IndexedDB edit reload, pause; no console/page errors. |
+| `test:visuals` on dev | Passed: three quality selections, audio settings persistence, shader sky, shaded chunks, hand, and day/night/medium-shadow screenshots; no console/page errors. |
+| Earlier browser regressions on dev | `test:integration`, `test:stations`, `test:creatures`, `test:exploration`, and `test:advanced` all passed with no console/page errors. |
+| Visual review | Inspected 1280×720 pause, day, night, and medium-shadow screenshots. The pause controls fit; terrain, sky, stars, hand, UI, and shadows appeared. A daytime-star artifact was seen and fixed, then recaptured. |
+
+**Bugs found and fixed:** The new atlas initially left unused tiles with zero alpha, caught by Vitest; all atlas texels now have opaque alpha. The production-preview browser fixture sometimes stopped before reaching a six-block raycast target; it now tilts toward nearby ground. Its placement check also assumed every new edit increases the record count, and its notice checks could be overwritten by pickup messages; it now compares IndexedDB edit contents directly. The final rerun passed. Daytime stars seen in the shadow screenshot were faded out in daylight; the final screenshot was checked. Code review also found that changing an audio slider would unnecessarily recreate the shadow map; graphics reconfiguration now runs only when the preset changes. Failed checks were rerun after fixes.
+
+**Measured performance:** Headless Edge with SwiftShader measured 126.4 ms mean/146.2 ms maximum requestAnimationFrame interval and 25.3 MB JS heap in a 25-chunk built-preview gameplay journey. A later successful built-preview run stalled for about 287 seconds during its 60-frame sample, giving 4916.0 ms mean/286646.3 ms maximum and 18.5 MB heap. The cause of that outlier was not established. The final dev medium-shadow sample measured 193.1 ms mean across 20 frames with 23.1 MB heap; an earlier run measured 210.4 ms. A 24-creature stress fixture measured 179.2 ms mean/243.9 ms maximum and 23.3 MB heap; one creature measured 130.5 ms mean/140.8 ms maximum and 22.0 MB heap. The advanced journey measured 49.3 ms mean/72.6 ms maximum and 66.8 MB heap in a different scene. These short software-rendered samples vary by workload and are not native GPU frame rates or total process memory. Low quality is the default; medium/high shadows carry a clear cost in SwiftShader.
+
+**Not verified:** Perceived audio quality and volume on speakers, long-session WebGL/JS memory stability, native GPU performance, High quality frame rate, all biome/weather combinations, accessibility with assistive technology, and browsers other than headless Edge. The available browser tests exercised audio settings and context startup, but did not listen to output. No deployment occurred.
 
 Date: 2026-11-12. Windows, Node.js 24.21.0, npm 11.19.0, Three.js 0.181.x, Vite 7.3.8, Vitest 4.1.12, Microsoft Edge headless with SwiftShader. The Godot project was inspected but not modified or rebuilt in this phase.
 

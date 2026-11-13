@@ -1,38 +1,17 @@
 import * as THREE from 'three';
 import { Block, isDecorative, isFluid, isShaped } from '../world/blocks';
 import { ChunkData, HEIGHT, SIZE } from '../world/chunk';
+import {atlasPixels,ATLAS_SIZE} from './palette';
 
-const colors = [
-  '#ff00ff','#5d963e','#735039','#777b7f','#c9b47a','#d9e8ee','#4a5039','#356ba8',
-  '#755037','#3b7739','#e47278','#5fa53d','#333438','#a9693c','#aaa192','#d5a339',
-  '#705139','#777b7f','#777a73','#a7d8e8','#8d8d89','#7a5837','#87552e','#795338',
-  '#90613b','#62666b','#9e6631','#78914d',
-  '#4d87b8','#df4d1f','#ff7a22','#8d4d37','#805f43','#ae9264','#b79b73','#bd6b35',
-  '#f5dc6f','#817061','#694f35','#9fb93d','#a74358','#766f67','#6b3cb1','#73d2d0',
-  '#bb84dd','#ff00ff','#ff00ff','#ff00ff','#fff3a4',
-];
 export function terrainTexture(): THREE.DataTexture {
-  const pixels=new Uint8Array(128*128*4);
-  for(let b=0;b<colors.length;b++) {
-    const col=new THREE.Color(colors[b]!);
-    for(let y=0;y<16;y++) for(let x=0;x<16;x++) {
-      const noise=((x*37+y*57+x*y*13)%17-8)/100;
-      const base=b===Block.GrassSide && y<3 ? new THREE.Color(colors[Block.Grass]!) :
-        b===Block.SnowSide && y<3 ? new THREE.Color(colors[Block.Snow]!) : col;
-      const c=base.clone().offsetHSL(0,0,noise*.22).convertLinearToSRGB();
-      const i=((Math.floor(b/8)*16+y)*128+(b%8)*16+x)*4;
-      pixels[i]=Math.round(c.r*255); pixels[i+1]=Math.round(c.g*255);
-      pixels[i+2]=Math.round(c.b*255); pixels[i+3]=255;
-    }
-  }
-  const texture=new THREE.DataTexture(pixels,128,128,THREE.RGBAFormat);
+  const texture=new THREE.DataTexture(atlasPixels(),ATLAS_SIZE,ATLAS_SIZE,THREE.RGBAFormat);
   texture.magFilter=texture.minFilter=THREE.NearestFilter;
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.flipY=true; texture.needsUpdate=true;
   return texture;
 }
-type Buffer = { pos: number[]; normal: number[]; uv: number[]; index: number[] };
-const buffer=(): Buffer => ({pos:[],normal:[],uv:[],index:[]});
+type Buffer = { pos: number[]; normal: number[]; uv: number[]; color:number[]; index: number[] };
+const buffer=(): Buffer => ({pos:[],normal:[],uv:[],color:[],index:[]});
 const dirs: [number,number,number][] = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const corners: [number,number,number][][] = [
   [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],
@@ -42,7 +21,7 @@ const corners: [number,number,number][][] = [
   [[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5],[-.5,-.5,.5]],
   [[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5],[.5,-.5,-.5]],
 ];
-function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [number,number,number], size: [number,number,number], side: number): void {
+function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [number,number,number], size: [number,number,number], side: number, data?:ChunkData): void {
   const start=buf.pos.length/3, tile=b as number, tx=tile%8,ty=Math.floor(tile/8), edge=.001;
   const uv: [number,number][]=[[0,1],[0,0],[1,0],[1,1]];
   for(let i=0;i<4;i++) {
@@ -50,6 +29,18 @@ function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [nu
     buf.pos.push(origin[0]+offset[0]+c[0]*size[0],origin[1]+offset[1]+c[1]*size[1],origin[2]+offset[2]+c[2]*size[2]);
     buf.normal.push(...dirs[side]!);
     buf.uv.push((tx+edge+(1-2*edge)*u[0])/8,1-(ty+edge+(1-2*edge)*u[1])/8);
+    let shade=1;
+    if(data){
+      const face=dirs[side]!,a=(side<2?1:0),d=(side>=4?1:2);
+      const oa=[0,0,0],ob=[0,0,0],corner=corners[side]![i]!;
+      oa[a]=corner[a]>0?1:-1;ob[d]=corner[d]>0?1:-1;
+      const x=origin[0]+face[0],y=origin[1]+face[1],z=origin[2]+face[2];
+      const solid=(dx:number,dy:number,dz:number)=>{const block=data.get(x+dx,y+dy,z+dz);return block!==Block.Air&&!isFluid(block)&&!isDecorative(block)&&block!==Block.Glass;};
+      const sideA=solid(oa[0]!,oa[1]!,oa[2]!),sideB=solid(ob[0]!,ob[1]!,ob[2]!);
+      const diagonal=solid(oa[0]!+ob[0]!,oa[1]!+ob[1]!,oa[2]!+ob[2]!);
+      shade=1-(sideA&&sideB?3:Number(sideA)+Number(sideB)+Number(diagonal))*.16;
+    }
+    buf.color.push(shade,shade,shade);
   }
   buf.index.push(start,start+1,start+2,start,start+2,start+3);
 }
@@ -66,24 +57,25 @@ function makeGeometry(buf: Buffer): THREE.BufferGeometry {
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(buf.pos,3));
   geometry.setAttribute('normal',new THREE.Float32BufferAttribute(buf.normal,3));
   geometry.setAttribute('uv',new THREE.Float32BufferAttribute(buf.uv,2));
+  geometry.setAttribute('color',new THREE.Float32BufferAttribute(buf.color,3));
   geometry.setIndex(buf.index); return geometry;
 }
-export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transparent: THREE.Material): THREE.Group {
-  const solid=buffer(), alpha=buffer();
+export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transparent: THREE.Material, waterMaterial:THREE.Material=transparent, lavaMaterial:THREE.Material=transparent): THREE.Group {
+  const solid=buffer(), alpha=buffer(),water=buffer(),lava=buffer();
   const box=(buf: Buffer,b: Block,x: number,y: number,z: number,off: [number,number,number],size: [number,number,number]) => {
     for(let s=0;s<6;s++) emit(buf,b,[x,y,z],off,size,s);
   };
   for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++) for(let y=0;y<HEIGHT;y++) {
     const state=data.getState(x,y,z),b=state.type;
     if(b===Block.Air) continue;
-    const buf=isFluid(b) || b===Block.Glass || b===Block.RealmPortal ? alpha : solid;
+    const buf=b===Block.Water||b===Block.WaterFlow?water:b===Block.Lava||b===Block.LavaFlow?lava:b===Block.Glass||b===Block.RealmPortal?alpha:solid;
     if(isShaped(b)) {
       if(b===Block.Slab) box(buf,b,x,y,z,[0,(state.properties&4) ? .25 : -.25,0],[1,.5,1]);
       else if(b===Block.Bed) box(buf,b,x,y,z,[0,-.25,0],[1,.5,1]);
       else if([Block.Wire,Block.Plate,Block.Rail,Block.Farmland,Block.Repeater].includes(b))box(buf,b,x,y,z,[0,-.43,0],[1,.14,1]);
       else if(b===Block.WheatCrop||b===Block.BerryCrop)box(buf,b,x,y,z,[0,-.5+(state.properties&3)*.12,0],[.52,.2+(state.properties&3)*.24,.52]);
       else if(b===Block.Switch||b===Block.Button)box(buf,b,x,y,z,[0,-.25,0],[.48,.5,.48]);
-      else if(b===Block.Lamp||b===Block.Piston||b===Block.RealmPortal)box(buf,b,x,y,z,[0,0,0],[1,1,1]);
+      else if(b===Block.Lamp||b===Block.Piston||b===Block.RealmPortal)box(buf,b===Block.Lamp&&(state.properties&16)?48 as Block:b,x,y,z,[0,0,0],[1,1,1]);
       else if(b===Block.Stairs) {
         box(buf,b,x,y,z,[0,-.25,0],[1,.5,1]);
         const facing=state.properties&3;
@@ -110,12 +102,14 @@ export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transpar
       if(!exposed(b,data.get(x+d[0],y+d[1],z+d[2]))) continue;
       const material=b===Block.Grass && s!==2 ? Block.GrassSide : b===Block.Snow && s!==2 ? Block.SnowSide :
         b===Block.Lamp&&(state.properties&16)?48 as Block:b;
-      emit(buf,material,[x,y,z],[0,0,0],[1,1,1],s);
+      emit(buf,material,[x,y,z],[0,0,0],[1,1,1],s,data);
     }
   }
   const group=new THREE.Group(); group.position.set(data.cx*SIZE,0,data.cz*SIZE);
   if(solid.index.length) group.add(new THREE.Mesh(makeGeometry(solid),opaque));
   if(alpha.index.length) group.add(new THREE.Mesh(makeGeometry(alpha),transparent));
+  if(water.index.length) group.add(new THREE.Mesh(makeGeometry(water),waterMaterial));
+  if(lava.index.length) group.add(new THREE.Mesh(makeGeometry(lava),lavaMaterial));
   return group;
 }
 export function disposeChunk(group: THREE.Group): void {

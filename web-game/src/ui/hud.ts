@@ -2,6 +2,8 @@ import {Block,blockNames} from '../world/blocks';
 import {biomeNames,type Biome} from '../world/generator';
 import {GameItems,isEmpty,item} from '../items/items';
 import {SurvivalState,WorldCycle,type Mode} from '../survival/state';
+import {parseQuality,type Quality} from '../render/quality';
+import type {AudioSettings} from '../render/sounds';
 export class Hud{
   readonly root=document.querySelector<HTMLElement>('#app')!;
   readonly canvas:HTMLCanvasElement;
@@ -9,6 +11,7 @@ export class Hud{
   private seedInput:HTMLInputElement;private distanceInput:HTMLInputElement;private sensitivityInput:HTMLInputElement;
   onResume:()=>void=()=>{};onSettings:(seed:number,distance:number,sensitivity:number)=>void=()=>{};
   onMode:(mode:Mode)=>void=()=>{};onRespawn:()=>void=()=>{};
+  onVisualSettings:(quality:Quality,audio:AudioSettings)=>void=()=>{};
   constructor(readonly items:GameItems){
     this.root.innerHTML=`<canvas id="game" aria-label="Stonewake 3D game"></canvas>
     <div class="topline"><strong>STONEWAKE</strong><span id="world-info"></span></div><div id="cycle-info"></div>
@@ -19,6 +22,10 @@ export class Hud{
       <button id="resume">Enter world</button><label>World seed<input id="seed" type="number" step="1"></label>
       <label>Render distance <output id="distance-value">2</output><input id="distance" type="range" min="2" max="6" value="2"></label>
       <label>Mouse sensitivity <output id="sensitivity-value">0.18</output><input id="sensitivity" type="range" min="0.03" max="0.5" step="0.01" value="0.18"></label>
+      <label>Graphics quality<select id="quality"><option value="low">Low · faster</option><option value="medium">Medium · soft shadows</option><option value="high">High · detailed shadows</option></select></label>
+      <label>Effects volume <output id="effects-value">70%</output><input id="effects-volume" type="range" min="0" max="100" value="70"></label>
+      <label>Ambience volume <output id="ambience-value">45%</output><input id="ambience-volume" type="range" min="0" max="100" value="45"></label>
+      <label>Music volume <output id="music-value">0%</output><input id="music-volume" type="range" min="0" max="100" value="0"></label>
       <label>Game mode<select id="mode"><option value="survival">Survival</option><option value="creative">Creative · flight and unlimited blocks</option></select></label>
       <button id="apply">Apply world settings</button><p class="help">Click to capture the mouse. Hold left click to mine; right click to place or use. E opens inventory; 1–9 select hotbar slots.</p></section></div>
     <div id="death" class="overlay hidden"><section class="panel death-panel"><h1>YOU FELL</h1><p>Your carried items remain where you died.</p><button id="respawn">Respawn (R)</button></section></div>`;
@@ -31,9 +38,18 @@ export class Hud{
     this.root.querySelector<HTMLSelectElement>('#mode')!.addEventListener('change',event=>this.onMode((event.target as HTMLSelectElement).value as Mode));
     this.distanceInput.addEventListener('input',()=>{this.root.querySelector('#distance-value')!.textContent=this.distanceInput.value;});
     this.sensitivityInput.addEventListener('input',()=>{this.root.querySelector('#sensitivity-value')!.textContent=this.sensitivityInput.value;});
+    this.root.querySelector('#quality')!.addEventListener('change',()=>this.onVisualSettings(this.quality,this.audio));
+    for(const kind of ['effects','ambience','music'] as const){const input=this.root.querySelector<HTMLInputElement>(`#${kind}-volume`)!;
+      input.addEventListener('input',()=>{this.root.querySelector(`#${kind}-value`)!.textContent=`${input.value}%`;this.onVisualSettings(this.quality,this.audio);});}
     this.renderHotbar();
   }
   get seed(){return Number(this.seedInput.value)|0;}get distance(){return Number(this.distanceInput.value)|0;}get sensitivity(){return Number(this.sensitivityInput.value);}
+  get quality(){return parseQuality(this.root.querySelector<HTMLSelectElement>('#quality')!.value);}
+  get audio():AudioSettings{return {effects:Number(this.root.querySelector<HTMLInputElement>('#effects-volume')!.value)/100,
+    ambience:Number(this.root.querySelector<HTMLInputElement>('#ambience-volume')!.value)/100,music:Number(this.root.querySelector<HTMLInputElement>('#music-volume')!.value)/100};}
+  setVisualSettings(quality:Quality,audio:AudioSettings){this.root.querySelector<HTMLSelectElement>('#quality')!.value=quality;
+    for(const kind of ['effects','ambience','music'] as const){const value=Math.round(audio[kind]*100);
+      this.root.querySelector<HTMLInputElement>(`#${kind}-volume`)!.value=String(value);this.root.querySelector(`#${kind}-value`)!.textContent=`${value}%`;}}
   setSettings(seed:number,distance:number,sensitivity:number){this.seedInput.value=String(seed);this.distanceInput.value=String(distance);this.sensitivityInput.value=String(sensitivity);this.root.querySelector('#distance-value')!.textContent=String(distance);this.root.querySelector('#sensitivity-value')!.textContent=sensitivity.toFixed(2);}
   setMode(mode:Mode){this.root.querySelector<HTMLSelectElement>('#mode')!.value=mode;this.renderHotbar();}
   setPaused(value:boolean){this.overlay.classList.toggle('hidden',!value);}

@@ -13,8 +13,13 @@ type WorkerResult = {epoch:number;cx:number;cz:number;blocks:Uint8Array;properti
 export class VoxelWorld {
   readonly group=new THREE.Group();
   private readonly texture=terrainTexture();
-  private readonly opaque=new THREE.MeshLambertMaterial({map:this.texture,side:THREE.DoubleSide});
-  private readonly transparent=new THREE.MeshLambertMaterial({map:this.texture,transparent:true,opacity:.64,depthWrite:false,side:THREE.DoubleSide});
+  private readonly opaque=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,side:THREE.DoubleSide});
+  private readonly transparent=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,transparent:true,opacity:.64,depthWrite:false,side:THREE.DoubleSide});
+  private readonly water=new THREE.MeshPhongMaterial({map:this.texture,vertexColors:true,transparent:true,opacity:.74,depthWrite:false,shininess:75,specular:'#7299ad',side:THREE.DoubleSide});
+  private readonly lava=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,emissive:'#c13c0a',emissiveIntensity:.55,side:THREE.DoubleSide});
+  shadows=false;
+  setShadows(enabled:boolean){this.shadows=enabled;for(const chunk of this.chunks.values())this.applyShadows(chunk.group);}
+  private applyShadows(group:THREE.Group){group.traverse(object=>{if(object instanceof THREE.Mesh){object.castShadow=this.shadows&&object.material===this.opaque;object.receiveShadow=this.shadows&&object.material===this.opaque;}});}
   private chunks=new Map<string,Chunk>();
   private pending=new Set<string>();
   private edits=new Map<string,Edit>();
@@ -90,7 +95,7 @@ export class VoxelWorld {
   private install(data: ChunkData): void {
     const k=key(data.cx,data.cz); if(this.chunks.has(k)) return;
     this.applyEdits(data);
-    const group=buildChunkMesh(data,this.opaque,this.transparent);
+    const group=buildChunkMesh(data,this.opaque,this.transparent,this.water,this.lava);this.applyShadows(group);
     this.group.add(group); this.chunks.set(k,{data,group});
     this.onChunkInstalled(data.cx,data.cz);
   }
@@ -139,7 +144,7 @@ export class VoxelWorld {
   private rebuild(cx: number,cz: number): void {
     const chunk=this.chunks.get(key(cx,cz)); if(!chunk) return;
     this.group.remove(chunk.group); disposeChunk(chunk.group);
-    chunk.group=buildChunkMesh(chunk.data,this.opaque,this.transparent);
+    chunk.group=buildChunkMesh(chunk.data,this.opaque,this.transparent,this.water,this.lava);this.applyShadows(chunk.group);
     this.group.add(chunk.group);
   }
   private commit(changes: Edit[]): void {
@@ -185,6 +190,6 @@ export class VoxelWorld {
   }
   dispose(): void {
     this.clear(); for(const worker of this.workers) worker.terminate(); this.workers=[]; this.busy.clear();
-    this.texture.dispose(); this.opaque.dispose(); this.transparent.dispose();
+    this.texture.dispose(); this.opaque.dispose(); this.transparent.dispose();this.water.dispose();this.lava.dispose();
   }
 }

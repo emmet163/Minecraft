@@ -147,9 +147,11 @@ export class CreatureSystem{
   private animate(c:Creature,delta:number){c.age+=delta;c.hurtClock=Math.max(0,c.hurtClock-delta);
     const walking=c.state==='wander'||c.state==='chase'||c.state==='flee';
     for(let i=0;i<c.legs.length;i++)c.legs[i]!.rotation.x=walking?Math.sin(c.phase+i*Math.PI)*.45:0;
-    for(const head of c.heads)head.rotation.x=c.state==='graze'?.35+Math.sin(c.age*2)*.1:c.state==='attack'?-.22:0;
+    for(const head of c.heads){head.rotation.x=c.state==='graze'?.35+Math.sin(c.age*2)*.1:c.state==='attack'?-.22:Math.sin(c.age*1.5)*.045;
+      head.rotation.y=Math.sin(c.age*.65+c.id)*.07;}
+    const body=c.meshes[0];if(body&&!c.legs.includes(body)&&!c.heads.includes(body))body.position.y=c.def.parts[0]!.offset[1]+Math.sin(c.age*2.1)*.015;
     for(let i=0;i<c.meshes.length;i++)c.meshes[i]!.material=c.hurtClock>0?this.hitMaterial:this.material(i===0&&c.tunic?c.tunic:c.def.parts[i]!.color);
-    c.group.rotation.y=c.heading;
+    c.group.rotation.y=c.heading;c.group.rotation.z=c.state==='attack'?Math.sin(c.age*12)*.055:0;
   }
   private spawnNear(player:THREE.Vector3,daylight:number){if(this.creatures.length>=this.maxPopulation)return;
     for(let attempt=0;attempt<12;attempt++){

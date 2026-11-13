@@ -14,6 +14,7 @@
     "test:creatures": "node tests/creatures.mjs",
     "test:exploration": "node tests/exploration.mjs",
     "test:advanced": "node tests/advanced.mjs",
+    "test:visuals": "node tests/visuals.mjs",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
