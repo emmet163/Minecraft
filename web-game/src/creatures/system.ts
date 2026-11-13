@@ -11,11 +11,12 @@ export type Occupation='farmer'|'mason'|'cartographer';
 export interface Inhabitant{key:string;occupation:Occupation;home:SitePoint;work:SitePoint;market:SitePoint}
 interface PartDef{size:[number,number,number];offset:[number,number,number];color:string;role?:'head'|'leg'}
 export interface CreatureDef{id:string;name:string;kind:CreatureKind;attackMode:'none'|'melee'|'ranged';biomes:string[];
+  realm?:'veil';
   health:number;speed:number;damage:number;range:number;cooldown:number;experience:number;drop:string;dropCount:number;
   radius:number;height:number;parts:PartDef[]}
 export const creatureDefs:CreatureDef[]=raw as CreatureDef[];
 export interface CreatureWorld{get(x:number,y:number,z:number):Block;getState(x:number,y:number,z:number):BlockState;
-  isLoaded(x:number,z:number):boolean;generator:{surfaceHeight(x:number,z:number):number;biomeAt(x:number,z:number):Biome}}
+  isLoaded(x:number,z:number):boolean;generator:{surfaceHeight(x:number,z:number):number;biomeAt(x:number,z:number):Biome;realm?:'overworld'|'veil'}}
 export interface CreatureView{position:THREE.Vector3;health:number;maxHealth:number;name:string;state:CreatureState;kind:CreatureKind}
 export class Creature{
   readonly group=new THREE.Group();readonly legs:THREE.Mesh[]=[];readonly heads:THREE.Mesh[]=[];readonly meshes:THREE.Mesh[]=[];
@@ -23,6 +24,7 @@ export class Creature{
   aggression=0;flee=0;attackClock=0;thinkClock=0;decisionClock=0;deadClock=0;hurtClock=0;age=0;phase=0;heading=0;
   avoidClock=0;avoidHeading=0;
   inhabitant?:Inhabitant;tunic?:string;dungeonKey?:string;
+  breedCooldown=0;
   constructor(readonly id:number,readonly def:CreatureDef,geometry:THREE.BoxGeometry,material:(color:string)=>THREE.Material){
     this.health=def.health;
     for(const part of def.parts){const mesh=new THREE.Mesh(geometry,material(part.color));mesh.scale.set(...part.size);mesh.position.set(...part.offset);
@@ -73,6 +75,10 @@ export class CreatureSystem{
       const c=this.spawnAt(i?'ember_spitter':'dusk_stalker',site.x+(i?3:-3),site.y-11.49,site.z+2);
       if(c)c.dungeonKey=key;
     }
+  }
+  breed(c:Creature):Creature|undefined{if(c.def.kind!=='peaceful'||!c.alive||c.breedCooldown>0)return;
+    const child=this.spawnAt(c.def.id,c.position.x+1,c.position.y,c.position.z+1);if(!child)return;
+    child.group.scale.setScalar(.68);child.breedCooldown=120;c.breedCooldown=120;return child;
   }
   private removeAt(index:number){const creature=this.creatures[index]!;this.group.remove(creature.group);this.creatures.splice(index,1);}
   private removeShot(index:number){const shot=this.projectiles[index]!;this.group.remove(shot.mesh);this.projectiles.splice(index,1);}
@@ -153,8 +159,9 @@ export class CreatureSystem{
       const biome=biomeNames[this.world.generator.biomeAt(x,z)],h=this.world.generator.surfaceHeight(x,z);
       if(h<44||h>91||!isSolid(this.world.get(x,h,z))||this.world.get(x,h+1,z)!==Block.Air||this.world.get(x,h+2,z)!==Block.Air)continue;
       let crowded=false;for(const other of this.creatures)if((other.position.x-x)**2+(other.position.z-z)**2<36){crowded=true;break;}if(crowded)continue;
-      const eligible=creatureDefs.filter(def=>def.kind!=='friendly'&&def.biomes.includes(biome)&&
-        (def.kind==='hostile'?daylight<.25:def.kind==='peaceful'?daylight>.15:true));
+      const realm=this.world.generator.realm||'overworld';
+      const eligible=creatureDefs.filter(def=>def.kind!=='friendly'&&(def.realm||'overworld')===realm&&def.biomes.includes(biome)&&
+        (def.kind==='hostile'?(realm==='veil'||daylight<.25):def.kind==='peaceful'?daylight>.15:true));
       if(!eligible.length)continue;const choice=eligible[Math.floor(this.random()*eligible.length)]!;
       if(choice.kind==='hostile'&&this.creatures.filter(c=>c.def.kind==='hostile').length>=10)continue;
       this.spawnAt(choice.id,x,h+.51,z);return;
@@ -166,6 +173,7 @@ export class CreatureSystem{
       if(distanceSq>this.despawnRadius**2||!this.world.isLoaded(c.position.x,c.position.z)){this.removeAt(i);continue;}
       if(!c.alive){c.deadClock-=delta;c.group.scale.setScalar(Math.max(.001,c.deadClock/.3));if(c.deadClock<=0)this.removeAt(i);continue;}
       if(distanceSq>this.activeRadius**2)continue;
+      c.breedCooldown=Math.max(0,c.breedCooldown-delta);
       c.aggression=Math.max(0,c.aggression-delta);c.flee=Math.max(0,c.flee-delta);c.attackClock=Math.max(0,c.attackClock-delta);
       c.decisionClock-=delta;c.thinkClock-=delta;
       if(c.thinkClock<=0){c.thinkClock=distanceSq<144?.15:.45;this.think(c,player,playerVulnerable,hour);}

@@ -28,6 +28,7 @@ npm run test:integration
 npm run test:stations
 npm run test:creatures
 npm run test:exploration
+npm run test:advanced
 ```
 
 Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview.
@@ -44,7 +45,8 @@ Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the pro
 | Select hotbar | 1–9 or mouse wheel |
 | Cycle mining tool | Q |
 | Open inventory | E |
-| Eat selected food | F |
+| Use selected food or tonic | F |
+| Mount or dismount nearby vehicle | V |
 | Open field map | M |
 | Trade with a targeted inhabitant | Right mouse |
 | Pause and release mouse | Escape |
@@ -65,12 +67,20 @@ Seeded landmarks include villages with varied houses, paths and farms; undergrou
 
 Structure chests contain deterministic loot. Treasure includes relic shards, sunstones, survey maps and wayfinders. Press **M** to view discovered landmarks and track one. The HUD shows coordinates and a compass bearing; a survey map reveals nearby landmarks, while a wayfinder also points toward an undiscovered one. Finding landmarks awards experience in Survival mode. Dungeon guards use the existing hostile combat system.
 
+## Advanced systems (Phase 8)
+
+Water and lava sources spread into nearby open cells in scheduled batches, continue across loaded chunk borders, and form stone when water reaches lava. Flowing cells and reactions are saved as terrain edits. Signal wire carries power from switches, timed buttons and player pressure plates. Repeaters delay and renew it; powered lamps glow, pistons push one block, and nearby doors open automatically. Right-click switches and buttons to operate them.
+
+Place cultivated soil near water for irrigation, then plant Sungrain or Berry Seeds on top. Crops mature through four stages and mature crops yield food and seed when mined. Right-click a peaceful animal while holding berries to breed it; each parent has a cooldown. Place rails and an Ore Cart, or place a Reed Boat on water. Press **V** near a vehicle to mount or dismount; **W/S** drives it while mounted. Vehicles are saved per realm.
+
+Sunsteel upgrades and three tonics extend equipment progression. Use a selected tonic with **F** for speed, damage reduction or immediate healing. A Veil Gate crafted from Overworld treasure opens the alternate **Veil** realm on right-click. The Veil has original terrain, Gleam Ore, Veil Crystals, lava pools and hostile Veil Shades. Right-click a gate to return. The Overworld and Veil keep separate terrain edits under the same world seed.
+
 ## Saves
 
-IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, spawn point, discovered landmarks, generated treasure, trade stock and deceased inhabitants or dungeon guards. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control and world settings. Saved Godot `user://` files are not imported.
+IndexedDB stores terrain edits and player data by seed, including position, inventory, equipment, containers, furnace progress, health, hunger, time, weather, spawn point, discovered landmarks, generated treasure, trade stock, deceased inhabitants or dungeon guards, vehicles, effects and realm positions. The browser autosaves every five game seconds and on pause, inventory changes, and page visibility changes. Storage failure displays a warning and uses temporary in-memory data for the current page session. `localStorage` stores control and world settings. Saved Godot `user://` files are not imported.
 
 ## Deploy to Vercel
 
-Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No Phase 7 deployment was performed.
+Create a Vercel project from this repository. Set **Root Directory** to `web-game`, **Build Command** to `npm run build`, and **Output Directory** to `dist`. The Vite base is relative, so the generated asset paths work on static hosting. Single-player play needs no persistent backend. No Phase 8 deployment was performed.
 
 See [MIGRATION_REPORT.md](MIGRATION_REPORT.md), [TEST_REPORT.md](TEST_REPORT.md), and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for verified coverage and limits.

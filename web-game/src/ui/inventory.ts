@@ -1,4 +1,4 @@
-import {Block,blockNames} from '../world/blocks';
+import {Block,blockNames,selectableBlocks} from '../world/blocks';
 import {GameItems,InventoryGrid,craft,isEmpty,item,matchRecipe,recipes,smelting,type Recipe,type Stack,empty} from '../items/items';
 import {SurvivalState} from '../survival/state';
 export type InventoryMode='personal'|'station'|'chest'|'furnace';
@@ -66,7 +66,7 @@ export class InventoryView{
       ${storage?`<h3>${furnace?'INPUT / FUEL / OUTPUT':'STORAGE'}</h3><div class="inventory-grid ${furnace?'furnace-grid':'chest-grid'}">${this.slots(storage,'storage')}</div>`:''}
       ${furnace?`<p>Heat ${furnace.burn.toFixed(1)}s · Smelting ${Math.round(furnace.progress/(smelting.get(furnace.slots.get(0).id)?.seconds||4)*100)}%</p>`:''}
       ${this.mode==='personal'||this.mode==='station'?`<h3>RECIPE GUIDE</h3><select id="recipe-guide"><option value="">Select a recipe</option>${available.map(r=>`<option value="${r.id}">${item(r.output).name} ×${r.count}</option>`).join('')}</select><p id="recipe-details"></p>`:''}
-      ${this.life.mode==='creative'?`<h3>CREATIVE BLOCK PALETTE</h3><select id="creative-palette">${blockNames.map((name,i)=>i===0||i===16||i===17?'':`<option value="${i}" ${this.life.creativeBlock===i?'selected':''}>${name}</option>`).join('')}</select>`:''}
+      ${this.life.mode==='creative'?`<h3>CREATIVE BLOCK PALETTE</h3><select id="creative-palette">${selectableBlocks.map(i=>`<option value="${i}" ${this.life.creativeBlock===i?'selected':''}>${blockNames[i]}</option>`).join('')}</select>`:''}
       </div></section><div id="held-stack">${isEmpty(this.items.cursor)?'':`${item(this.items.cursor.id).name} ×${this.items.cursor.count}`}</div>`;
   }
 }

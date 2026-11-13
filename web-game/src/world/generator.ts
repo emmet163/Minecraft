@@ -10,7 +10,7 @@ const smooth = (a: number,b: number,x: number) => fade(Math.max(0,Math.min(1,(x-
 export class WorldGenerator {
   static readonly seaLevel = 42;
   readonly structures:StructurePlanner;
-  constructor(readonly seed: number) {this.structures=new StructurePlanner(seed,this);}
+  constructor(readonly seed: number,readonly realm:'overworld'|'veil'='overworld') {this.structures=new StructurePlanner(seed,this);}
   private hash(x: number,y: number,z: number,salt: number): number {
     let h = (this.seed ^ Math.imul(salt,0x9e3779b9)) >>> 0;
     h = (h ^ Math.imul(x,0x85ebca6b)) >>> 0; h = Math.imul(h ^ (h >>> 16),0xc2b2ae35) >>> 0;
@@ -37,6 +37,7 @@ export class WorldGenerator {
     return result/total;
   }
   surfaceHeight(x: number,z: number): number {
+    if(this.realm==='veil')return Math.max(35,Math.min(HEIGHT-9,Math.round(49+this.fractal(x*.009,z*.009,503)*21+this.fractal(x*.031,z*.031,521)*8)));
     const continent=this.fractal(x*.0035,z*.0035,11), hills=this.fractal(x*.012,z*.012,61);
     const ridges=1-Math.abs(this.fractal(x*.006,z*.006,79));
     const mountain=smooth(.16,.55,continent)*ridges*ridges*39;
@@ -47,6 +48,7 @@ export class WorldGenerator {
     return Math.max(4,Math.min(HEIGHT-7,Math.round(48+continent*24+hills*7+mountain-riverCut-lakeCut)));
   }
   biomeAt(x: number,z: number): Biome {
+    if(this.realm==='veil')return Biome.Mountains;
     const continent=this.fractal(x*.0035,z*.0035,11);
     const temp=this.fractal(x*.0025,z*.0025,23)+.12*Math.sin(z*.0008);
     const moisture=this.fractal(x*.003,z*.003,37), height=this.surfaceHeight(x,z);
@@ -72,6 +74,7 @@ export class WorldGenerator {
     return Block.Stone;
   }
   generate(cx: number,cz: number): ChunkData {
+    if(this.realm==='veil')return this.generateVeil(cx,cz);
     const data=new ChunkData(cx,cz), ox=cx*SIZE,oz=cz*SIZE;
     for(let z=-1;z<=SIZE;z++) for(let x=-1;x<=SIZE;x++) {
       const wx=ox+x,wz=oz+z,surface=this.surfaceHeight(wx,wz),biome=this.biomeAt(wx,wz);
@@ -90,6 +93,20 @@ export class WorldGenerator {
     }
     this.addPlants(data);
     this.structures.decorate(data);
+    return data;
+  }
+  private generateVeil(cx:number,cz:number):ChunkData{const data=new ChunkData(cx,cz),ox=cx*SIZE,oz=cz*SIZE;
+    for(let z=-1;z<=SIZE;z++)for(let x=-1;x<=SIZE;x++){
+      const wx=ox+x,wz=oz+z,surface=this.surfaceHeight(wx,wz);
+      for(let y=0;y<=surface;y++){
+        if(y>4&&y<surface-3&&this.cave(wx,y,wz,false))continue;
+        const chance=this.hash(floorDiv(wx,2),floorDiv(y,2),floorDiv(wz,2),601)%1000;
+        const block=y===surface?Block.Mud:y>surface-4?Block.Stone:chance<10?Block.GlowOre:chance<14?Block.Crystal:Block.Stone;
+        data.set(x,y,z,block);
+      }
+      if(surface<40)for(let y=surface+1;y<=40;y++)data.set(x,y,z,Block.Lava);
+      if(surface>40&&this.hash(wx,0,wz,647)%31===0)data.set(x,surface+1,z,Block.Crystal);
+    }
     return data;
   }
   private addPlants(data: ChunkData): void {

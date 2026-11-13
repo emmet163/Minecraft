@@ -115,3 +115,47 @@ The final production build emitted 609.15 kB main JS (162.19 kB gzip), 5.97 kB C
 ## Limits of verification
 
 Long-session memory stability, native GPU frame rates, other browsers, mobile/touch input, and accessibility were not verified. Every structure kind's chest block and deterministic loot was unit tested, while the complete browser journey covered a village. Dungeon combat, mines, ruins and vaults were not manually played end to end. No deployment was performed.
+
+---
+
+# Phase 8 test report
+
+Date: 2026-11-12. Windows, Node.js 24.21.0, Vite 7.3.8, Vitest 4.1.12, headless Microsoft Edge with SwiftShader. Only `web-game/` was changed. The unrelated `preview-site/` path was left untouched. Starting Git checkpoint: `f7d6c4b`.
+
+## Verification
+
+Before Phase 8 coding, strict TypeScript checking, all 27 Phase 7 Vitest tests, and the production Vite build passed. The world, chunk worker, block atlas, inventory, crafting, creature AI, survival, and IndexedDB paths were reviewed.
+
+| Executed check | Result |
+| --- | --- |
+| Final `npm run typecheck` | Passed with strict TypeScript settings |
+| Final `npm run test` | Passed: 36 Vitest tests in 6 files |
+| Final `npm run build` | Passed: static `dist/` output with relative asset paths |
+| `npm run test:browser` against Vite dev | Passed: WebGL scene, 25 chunks, movement, mining, placement, edited terrain after reload, pause; no browser errors |
+| `npm run test:integration` against Vite dev | Passed: movement, jump, mining, crafting, tools, fall damage, food, death, respawn, Creative flight, IndexedDB reload |
+| `npm run test:stations` against Vite dev | Passed: chest, furnace fuel/smelting, 3x3 crafting, bed sleep and persistence |
+| `npm run test:creatures` against Vite dev | Passed: night spawning, combat, retaliation, armor, drops/XP, ranged damage and population cap |
+| `npm run test:exploration` against Vite dev | Passed: village, loot, map, trade and IndexedDB reload |
+| `npm run test:advanced` against Vite dev | Passed: fluid flow and stone reaction, powered lamp, crop growth, cart ride, effect and terrain persistence, Veil entry/return and Veil creature spawn; no browser errors |
+| `npm run test:browser` against built preview | Passed: WebGL scene, 25 chunks, movement, mining, placement, edit reload and pause; no browser errors |
+| New Vitest tests | Water across chunk edge and draining; lava reaction; wire, switches, lamp, piston, button, repeater, plate and door logic; irrigation and two crops; rail and water vehicles; effects; realm isolation; breeding; Veil spawning and data-driven recipes |
+| Visual check | Inspected 1280x720 Veil screenshot: distinct purple sky, terrain and crystals, correct realm label and biome HUD |
+
+The final production build emitted a 639.92 kB main JS bundle (170.13 kB gzip), 6.16 kB CSS (1.99 kB gzip) and a 10.83 kB terrain worker. Vite's 500 kB JS chunk advisory remains. The Phase 8 dev baseline browser run measured 92.6 ms mean/377.3 ms maximum requestAnimationFrame interval and 23.7 MB JS heap across 25 loaded chunks; the final built preview measured 100.5 ms mean/113.2 ms maximum and 21.9 MB heap. The creature regression measured 100.4 ms mean/108.0 ms maximum with one creature and 128.8 ms mean/145.1 ms maximum with 24 creatures, at 23.5/23.0 MB JS heap respectively. Across several advanced browser journeys, rendered-frame means were 26.1–26.9 ms, maximums 28.8–53.6 ms, and observed JS heap 25.8–57.2 MB; Veil entry took 22–59 ms and return 15–56 ms. These are short headless software-rendered observations and varied with workload. They are not native GPU frame rates or total browser process memory.
+
+## Bugs found and fixed
+
+- The first strict build found tuple typing and a class-field syntax error in new modules; both were corrected before integration.
+- A new signal test found repeaters did not wake when their delay elapsed. Due repeaters are now queued at the scheduled time; the failed test passed on rerun.
+- Initial Veil edit storage used a numeric seed transform, which could collide with another world seed. Veil terrain edits now use a string namespace, while existing numeric Overworld keys stay compatible.
+- The first gate recipe required a Veil crystal, making the realm unreachable through normal progression. It now uses Overworld treasure.
+- Chunk edits previously rebuilt up to nine meshes even when a change touched only one chunk. Rebuilds now occur only for chunks whose padded data changed.
+- An advanced browser rerun found that a queued water update could overwrite a newer lava source, leaving a circuit fixture flooded. Simulation edits now carry expected prior block states and are rejected when a player or another system has changed the cell; the browser test passed on rerun. Fluid and circuit fixtures were also separated with a stone basin.
+- Boat placement could not target water because the original raycast skipped source water. The raycast now includes fluids only when a boat is selected; a unit test checks the water hit.
+- A browser fixture initially expected a Veil creature in an unloaded adjacent chunk. The fixture now loads that chunk before spawning it. Browser waits for fluid and circuit updates were increased after headless timing variability.
+- The realm label now refreshes immediately after travel, including while paused.
+- Visual inspection found that paused realm travel retained the old sky and biome HUD until gameplay resumed. Transition and saved-world loading now refresh lighting and the world readout immediately; the new Veil screenshot and browser assertions verified the fix.
+
+## Limits
+
+The complete browser journey covered one seeded terrain fixture and a two-way realm visit. Long-session memory stability, every circuit layout, extended fluid flooding, native GPU performance, other browsers, touch controls, physical input feel and audio quality were not verified. Automated checks do not establish balance or polished feel across all play styles. No deployment was performed.

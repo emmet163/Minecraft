@@ -10,6 +10,7 @@ export class PlayerController {
   readonly knockback=new THREE.Vector3();
   sensitivity=.18;
   flying=false;
+  speedMultiplier=1;
   onLand:(distance:number)=>void=()=>{};
   private airborne=false;private peakY=0;
   yaw=0; pitch=0;
@@ -69,8 +70,8 @@ export class PlayerController {
     const right=(this.keys.has('KeyD')?1:0)-(this.keys.has('KeyA')?1:0);
     const length=Math.hypot(forward,right)||1;
     const speed=crouching?2.5:this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')?8:5;
-    this.velocity.x=(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*right)/length*speed+this.knockback.x;
-    this.velocity.z=(-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*right)/length*speed+this.knockback.z;
+    this.velocity.x=(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*right)/length*speed*this.speedMultiplier+this.knockback.x;
+    this.velocity.z=(-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*right)/length*speed*this.speedMultiplier+this.knockback.z;
     this.knockback.multiplyScalar(Math.max(0,1-7*delta));
     const jump=this.keys.has('Space');
     if(jump && !this.jumpHeld && this.grounded) { this.velocity.y=7; this.grounded=false; }

@@ -1,5 +1,13 @@
 # Known issues and verification limits
 
+## Phase 8 additions
+
+- **Fluids:** Water and lava update in bounded batches around edits and continue when adjacent chunks load. Large open shafts can create many saved flow cells and may cause mesh rebuild spikes. Fluids do not model pressure, currents, swimming or buoyancy. Naturally generated seas and lava pools begin spreading when a nearby block changes.
+- **Circuits:** Wires carry a 15-step fading signal, repeaters add a fixed delay, and only the player activates plates. Pistons push one movable block on activation and do not pull it back. There is no multi-block sticky piston, complex signal timing editor, or creature-triggered plate behavior.
+- **Farming and vehicles:** Crop growth occurs while the loaded page is running; it does not catch up for offline time. Bred animals follow the existing transient creature lifecycle, so their exact positions and health do not persist. Carts use connected flat rails and simple direction choice; boats move on water cells. Sloped rails, junction routing, vehicle inventory, creature collisions and water currents are not simulated.
+- **The Veil:** Gates are activated by right-click; they do not trigger from walking through them. The realm has a separate terrain-edit namespace and save position, while inventory and survival status are shared. The first arrival and gate placement can briefly stall the main thread because the destination chunk is generated synchronously. Villages and other Overworld structures do not appear in the Veil.
+- **Performance and browser coverage:** Phase 8 was automated in headless Microsoft Edge with SwiftShader. The Vite JS bundle remains above its 500 kB advisory size. Native GPU frame rates, other browsers, mobile/touch input, extended water flooding, and long-session memory stability remain unverified.
+
 ## Phase 7 additions
 
 - **Exploration performance:** The latest 25-chunk headless Edge/SwiftShader run averaged 155.0 ms between animation frames. A 24-creature stress fixture averaged 245.4 ms. Generated structures use the existing terrain worker for streamed chunks and the planner cache is bounded, but initial spawn-chunk generation and occasional meshing still run on the main thread. Native GPU performance and long-session memory growth have not been measured.

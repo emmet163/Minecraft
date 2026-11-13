@@ -14,7 +14,7 @@ export class Hud{
     <div class="topline"><strong>STONEWAKE</strong><span id="world-info"></span></div><div id="cycle-info"></div>
     <div id="target"></div><div id="crosshair">+</div><div id="mining"><div></div></div><div id="notice"></div>
     <div class="bottom"><div id="survival-bars"><div id="health-bar"></div><div id="hunger-bar"></div><div id="air-bar"></div><div id="xp-bar"></div></div>
-      <div id="tool"></div><div id="hotbar"></div><small>WASD move · Space jump · Shift sprint · Ctrl crouch · Q tool · E inventory · M map · F eat · Esc pause</small></div>
+      <div id="tool"></div><div id="hotbar"></div><small>WASD move · Space jump · Shift sprint · Ctrl crouch · Q tool · E inventory · M map · F use · V ride · Esc pause</small></div>
     <div id="overlay" class="overlay"><section class="panel"><h1>Stonewake</h1><p>Explore, gather, craft, and survive.</p>
       <button id="resume">Enter world</button><label>World seed<input id="seed" type="number" step="1"></label>
       <label>Render distance <output id="distance-value">2</output><input id="distance" type="range" min="2" max="6" value="2"></label>

@@ -3,20 +3,24 @@ import type {ItemsSave} from '../items/items';
 import type {LifeSave,CycleSave} from '../survival/state';
 import type {ExplorationSave} from '../exploration/state';
 import type {VillageSave} from '../villages/trades';
+import type {VehicleSave} from '../gameplay/transport';
+import type {EffectSave} from '../gameplay/effects';
 
 export interface Edit { x: number; y: number; z: number; state: BlockState }
 export interface EditStore {
-  load(seed: number): Promise<Edit[]>;
-  putMany(seed: number, edits: Edit[]): Promise<void>;
+  load(seed: number|string): Promise<Edit[]>;
+  putMany(seed: number|string, edits: Edit[]): Promise<void>;
 }
 export interface GameSave {version:1;position:[number,number,number];yaw:number;pitch:number;items:ItemsSave;life:LifeSave;cycle:CycleSave;
-  exploration?:ExplorationSave;villages?:VillageSave}
+  exploration?:ExplorationSave;villages?:VillageSave;vehicles?:VehicleSave;effects?:EffectSave;
+  realm?:'overworld'|'veil';realmPositions?:Partial<Record<'overworld'|'veil',[number,number,number]>>;
+  realmVehicles?:Partial<Record<'overworld'|'veil',VehicleSave>>}
 export class MemoryEditStore implements EditStore {
   private data=new Map<string,Edit>();
-  async load(seed: number): Promise<Edit[]> {
+  async load(seed: number|string): Promise<Edit[]> {
     return [...this.data].filter(([key])=>key.startsWith(`${seed}:`)).map(([,edit])=>({...edit,state:{...edit.state}}));
   }
-  async putMany(seed: number, edits: Edit[]): Promise<void> {
+  async putMany(seed: number|string, edits: Edit[]): Promise<void> {
     for(const edit of edits) this.data.set(`${seed}:${edit.x}:${edit.y}:${edit.z}`,{...edit,state:{...edit.state}});
   }
 }
@@ -41,7 +45,7 @@ export class IndexedDbEditStore implements EditStore {
       request.onerror=()=>reject(request.error);
     });
   }
-  async load(seed: number): Promise<Edit[]> {
+  async load(seed: number|string): Promise<Edit[]> {
     if(!this.durable)return this.fallback.load(seed);
     try {const db=await this.open();
     return await new Promise<Edit[]>((resolve,reject)=>{
@@ -51,7 +55,7 @@ export class IndexedDbEditStore implements EditStore {
       request.onerror=()=>reject(request.error);
     });}catch(error){this.fail(error);return this.fallback.load(seed);}
   }
-  async putMany(seed: number, edits: Edit[]): Promise<void> {
+  async putMany(seed: number|string, edits: Edit[]): Promise<void> {
     if(!this.durable)return this.fallback.putMany(seed,edits);
     try {const db=await this.open();
     await new Promise<void>((resolve,reject)=>{

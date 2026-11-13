@@ -40,5 +40,13 @@
     {"size":[0.18,0.7,0.22],"offset":[-0.2,0.35,0],"color":"#4d4e5b","role":"leg"},
     {"size":[0.18,0.7,0.22],"offset":[0.2,0.35,0],"color":"#4d4e5b","role":"leg"},
     {"size":[0.76,0.13,0.68],"offset":[0,1.84,0],"color":"#786347"}
+  ]},
+  {"id":"veil_shade","name":"Veil Shade","kind":"hostile","attackMode":"melee","biomes":["Mountains"],"realm":"veil","health":15,"speed":2.6,"damage":3.5,"range":1.6,"cooldown":1.5,"experience":7,"drop":"crystal","dropCount":1,"radius":0.34,"height":1.6,"parts":[
+    {"size":[0.64,0.8,0.45],"offset":[0,1.02,0],"color":"#543f78"},
+    {"size":[0.5,0.48,0.47],"offset":[0,1.56,-0.06],"color":"#8a6ab2","role":"head"},
+    {"size":[0.16,0.7,0.2],"offset":[-0.19,0.35,0],"color":"#312d50","role":"leg"},
+    {"size":[0.16,0.7,0.2],"offset":[0.19,0.35,0],"color":"#312d50","role":"leg"},
+    {"size":[0.13,0.08,0.05],"offset":[-0.14,1.57,-0.31],"color":"#a9f3ef"},
+    {"size":[0.13,0.08,0.05],"offset":[0.14,1.57,-0.31],"color":"#a9f3ef"}
   ]}
 ]

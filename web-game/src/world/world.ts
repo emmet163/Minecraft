@@ -28,6 +28,9 @@ export class VoxelWorld {
   generator=new WorldGenerator(12345);
   renderDistance=2;
   onError: (message: string)=>void=console.error;
+  onEdits:(changes:Edit[])=>void=()=>{};
+  onChunkInstalled:(cx:number,cz:number)=>void=()=>{};
+  get editedCells():ReadonlyArray<Edit>{return [...this.edits.values()];}
   constructor(readonly store: EditStore, workers=true) {
     if(workers && typeof Worker!=='undefined') for(let i=0;i<2;i++) {
       const worker=new Worker(new URL('./terrain.worker.ts',import.meta.url),{type:'module'});
@@ -44,17 +47,18 @@ export class VoxelWorld {
   get loadedCount(): number { return this.chunks.size; }
   get pendingCount(): number { return this.pending.size; }
   get seed(): number { return this.generator.seed; }
+  get storageSeed():number|string{return this.generator.realm==='veil'?`veil:${this.seed}`:this.seed;}
   private clear(): void {
     this.epoch++;
     for(const chunk of this.chunks.values()) { this.group.remove(chunk.group); disposeChunk(chunk.group); }
     this.chunks.clear(); this.pending.clear(); this.edits.clear(); this.fallCandidates.clear();
   }
-  async configure(seed: number,renderDistance: number,px=0,pz=0): Promise<void> {
+  async configure(seed: number,renderDistance: number,px=0,pz=0,realm:'overworld'|'veil'='overworld'): Promise<void> {
     this.clear(); const epoch=this.epoch;
-    this.generator=new WorldGenerator(seed|0);
+    this.generator=new WorldGenerator(seed|0,realm);
     this.renderDistance=Math.max(2,Math.min(6,renderDistance|0));
     this.centerX=floorDiv(px,SIZE); this.centerZ=floorDiv(pz,SIZE);
-    const edits=await this.store.load(this.seed);
+    const edits=await this.store.load(this.storageSeed);
     if(epoch!==this.epoch) return;
     for(const edit of edits) if(edit.y>=0 && edit.y<HEIGHT) this.edits.set(editKey(edit.x,edit.y,edit.z),edit);
     this.install(this.generator.generate(this.centerX,this.centerZ));
@@ -88,6 +92,7 @@ export class VoxelWorld {
     this.applyEdits(data);
     const group=buildChunkMesh(data,this.opaque,this.transparent);
     this.group.add(group); this.chunks.set(k,{data,group});
+    this.onChunkInstalled(data.cx,data.cz);
   }
   private receive(worker: Worker,result: WorkerResult): void {
     const job=this.busy.get(worker); this.busy.delete(worker);
@@ -115,7 +120,7 @@ export class VoxelWorld {
       if(this.busy.has(worker)) continue;
       const next=candidates.shift(); if(!next) break;
       const [cx,cz]=next; this.busy.set(worker,{epoch:this.epoch,k:key(cx,cz)}); this.pending.add(key(cx,cz));
-      worker.postMessage({epoch:this.epoch,seed:this.seed,cx,cz});
+      worker.postMessage({epoch:this.epoch,seed:this.seed,realm:this.generator.realm,cx,cz});
     }
     // Test environments without Worker still load incrementally.
     if(!this.workers.length && candidates.length) {
@@ -144,18 +149,23 @@ export class VoxelWorld {
       const cx=floorDiv(edit.x,SIZE),cz=floorDiv(edit.z,SIZE);
       for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++) {
         const chunk=this.chunks.get(key(cx+dx,cz+dz)); if(!chunk) continue;
-        chunk.data.set(edit.x-chunk.data.cx*SIZE,edit.y,edit.z-chunk.data.cz*SIZE,edit.state.type,edit.state.properties);
+        const localX=edit.x-chunk.data.cx*SIZE,localZ=edit.z-chunk.data.cz*SIZE;
+        if(localX< -1||localX>SIZE||localZ< -1||localZ>SIZE)continue;
+        chunk.data.set(localX,edit.y,localZ,edit.state.type,edit.state.properties);
         rebuild.add(key(chunk.data.cx,chunk.data.cz));
       }
       if(edit.state.type===Block.Sand || edit.state.type===Block.Gravel) this.fallCandidates.add(editKey(edit.x,edit.y,edit.z));
       this.fallCandidates.add(editKey(edit.x,edit.y+1,edit.z));
     }
     for(const k of rebuild) { const [cx,cz]=k.split(',').map(Number); this.rebuild(cx!,cz!); }
+    this.onEdits(changes);
   }
-  async apply(changes: Edit[]): Promise<boolean> {
+  async apply(changes: Edit[],expected?:BlockState[]): Promise<boolean> {
     if(!changes.length || changes.some(e=>e.y<0||e.y>=HEIGHT||!this.isLoaded(e.x,e.z))) return false;
-    const epoch=this.epoch,seed=this.seed;
+    const epoch=this.epoch,seed=this.storageSeed;
     const action=this.queue.then(async()=>{
+      if(epoch!==this.epoch||expected?.some((prior,i)=>{const now=this.getState(changes[i]!.x,changes[i]!.y,changes[i]!.z);
+        return prior.type!==now.type||prior.properties!==now.properties;}))return false;
       await this.store.putMany(seed,changes);
       if(epoch!==this.epoch) return false;
       this.commit(changes); return true;

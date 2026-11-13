@@ -20,6 +20,7 @@ export class StructurePlanner{
     this.cache.set(key,site);
   }
   siteAtRegion(rx:number,rz:number):StructureSite|undefined{
+    if(this.terrain.realm==='veil')return;
     const key=`${rx},${rz}`;if(this.cache.has(key))return this.cache.get(key)??undefined;
     const roll=hash(this.seed,rx,rz,1)%100;
     const kind:StructureKind|undefined=roll<23?'village':roll<42?'ruin':roll<58?'mine':roll<72?'dungeon':roll<77?'vault':undefined;

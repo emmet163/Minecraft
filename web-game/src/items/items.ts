@@ -12,6 +12,13 @@ export const clone=(s:Stack):Stack=>({...s});
 export const catalog=new Map<string,ItemDef>((rawItems as ItemDef[]).map(item=>[item.id,item]));
 export function item(id:string):ItemDef {const value=catalog.get(id);if(!value)throw new Error(`Unknown item ${id}`);return value;}
 export function blockItem(block:Block):string {
+  const special:Partial<Record<Block,string>>={
+    [Block.Water]:'water_bucket',[Block.WaterFlow]:'',[Block.Lava]:'lava_bucket',[Block.LavaFlow]:'',
+    [Block.Wire]:'wire',[Block.Switch]:'switch',[Block.Button]:'button',[Block.Plate]:'plate',
+    [Block.Repeater]:'repeater',[Block.Lamp]:'lamp',[Block.Piston]:'piston',[Block.Farmland]:'farmland',
+    [Block.WheatCrop]:'wheat_seed',[Block.BerryCrop]:'berry_seed',[Block.Rail]:'rail',
+    [Block.RealmPortal]:'portal_frame',[Block.GlowOre]:'glow_ore',[Block.Crystal]:'crystal',
+  };if(block in special)return special[block]!;
   return block===Block.CraftingStation?'crafting_station':blockNames[block]!.toLowerCase().replaceAll(' ','_');
 }
 export function itemBlock(id:string):Block {

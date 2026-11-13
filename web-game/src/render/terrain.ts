@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Block, isDecorative, isShaped } from '../world/blocks';
+import { Block, isDecorative, isFluid, isShaped } from '../world/blocks';
 import { ChunkData, HEIGHT, SIZE } from '../world/chunk';
 
 const colors = [
@@ -7,9 +7,12 @@ const colors = [
   '#755037','#3b7739','#e47278','#5fa53d','#333438','#a9693c','#aaa192','#d5a339',
   '#705139','#777b7f','#777a73','#a7d8e8','#8d8d89','#7a5837','#87552e','#795338',
   '#90613b','#62666b','#9e6631','#78914d',
+  '#4d87b8','#df4d1f','#ff7a22','#8d4d37','#805f43','#ae9264','#b79b73','#bd6b35',
+  '#f5dc6f','#817061','#694f35','#9fb93d','#a74358','#766f67','#6b3cb1','#73d2d0',
+  '#bb84dd','#ff00ff','#ff00ff','#ff00ff','#fff3a4',
 ];
 export function terrainTexture(): THREE.DataTexture {
-  const pixels=new Uint8Array(128*64*4);
+  const pixels=new Uint8Array(128*128*4);
   for(let b=0;b<colors.length;b++) {
     const col=new THREE.Color(colors[b]!);
     for(let y=0;y<16;y++) for(let x=0;x<16;x++) {
@@ -22,7 +25,7 @@ export function terrainTexture(): THREE.DataTexture {
       pixels[i+2]=Math.round(c.b*255); pixels[i+3]=255;
     }
   }
-  const texture=new THREE.DataTexture(pixels,128,64,THREE.RGBAFormat);
+  const texture=new THREE.DataTexture(pixels,128,128,THREE.RGBAFormat);
   texture.magFilter=texture.minFilter=THREE.NearestFilter;
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.flipY=true; texture.needsUpdate=true;
@@ -46,15 +49,15 @@ function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [nu
     const c=corners[side]![i]!, u=uv[i]!;
     buf.pos.push(origin[0]+offset[0]+c[0]*size[0],origin[1]+offset[1]+c[1]*size[1],origin[2]+offset[2]+c[2]*size[2]);
     buf.normal.push(...dirs[side]!);
-    buf.uv.push((tx+edge+(1-2*edge)*u[0])/8,1-(ty+edge+(1-2*edge)*u[1])/4);
+    buf.uv.push((tx+edge+(1-2*edge)*u[0])/8,1-(ty+edge+(1-2*edge)*u[1])/8);
   }
   buf.index.push(start,start+1,start+2,start,start+2,start+3);
 }
 function exposed(b: Block,n: Block): boolean {
   if(isDecorative(b)) return true;
-  if(b===Block.Water) return n===Block.Air;
+  if(isFluid(b))return n===Block.Air||isFluid(n)&&n!==b;
   if(b===Block.Glass) return n===Block.Air || n===Block.Water || n===Block.Leaves;
-  if(n===Block.Air || n===Block.Water || isDecorative(n) || n===Block.Glass) return true;
+  if(n===Block.Air || isFluid(n) || isDecorative(n) || n===Block.Glass) return true;
   if(b===Block.Leaves) return n!==Block.Leaves;
   return n===Block.Leaves;
 }
@@ -73,10 +76,14 @@ export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transpar
   for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++) for(let y=0;y<HEIGHT;y++) {
     const state=data.getState(x,y,z),b=state.type;
     if(b===Block.Air) continue;
-    const buf=b===Block.Water || b===Block.Glass ? alpha : solid;
+    const buf=isFluid(b) || b===Block.Glass || b===Block.RealmPortal ? alpha : solid;
     if(isShaped(b)) {
       if(b===Block.Slab) box(buf,b,x,y,z,[0,(state.properties&4) ? .25 : -.25,0],[1,.5,1]);
       else if(b===Block.Bed) box(buf,b,x,y,z,[0,-.25,0],[1,.5,1]);
+      else if([Block.Wire,Block.Plate,Block.Rail,Block.Farmland,Block.Repeater].includes(b))box(buf,b,x,y,z,[0,-.43,0],[1,.14,1]);
+      else if(b===Block.WheatCrop||b===Block.BerryCrop)box(buf,b,x,y,z,[0,-.5+(state.properties&3)*.12,0],[.52,.2+(state.properties&3)*.24,.52]);
+      else if(b===Block.Switch||b===Block.Button)box(buf,b,x,y,z,[0,-.25,0],[.48,.5,.48]);
+      else if(b===Block.Lamp||b===Block.Piston||b===Block.RealmPortal)box(buf,b,x,y,z,[0,0,0],[1,1,1]);
       else if(b===Block.Stairs) {
         box(buf,b,x,y,z,[0,-.25,0],[1,.5,1]);
         const facing=state.properties&3;
@@ -96,10 +103,13 @@ export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transpar
       box(buf,b,x,y,z,[0,0,0],[.35,.6,.35]);
       continue;
     }
+    if(b===Block.WaterFlow||b===Block.LavaFlow){const height=.92-Math.min(7,state.properties&7)*.08;
+      box(buf,b,x,y,z,[0,(height-1)/2,0],[1,height,1]);continue;}
     for(let s=0;s<6;s++) {
       const d=dirs[s]!;
       if(!exposed(b,data.get(x+d[0],y+d[1],z+d[2]))) continue;
-      const material=b===Block.Grass && s!==2 ? Block.GrassSide : b===Block.Snow && s!==2 ? Block.SnowSide : b;
+      const material=b===Block.Grass && s!==2 ? Block.GrassSide : b===Block.Snow && s!==2 ? Block.SnowSide :
+        b===Block.Lamp&&(state.properties&16)?48 as Block:b;
       emit(buf,material,[x,y,z],[0,0,0],[1,1,1],s);
     }
   }

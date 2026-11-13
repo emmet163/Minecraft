@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { Block, collisionBoxes, isShaped, type BlockState, type Box } from './blocks';
+import { Block, collisionBoxes, isFluid, isShaped, type BlockState, type Box } from './blocks';
 
 export interface RayWorld { getState(x:number,y:number,z:number): BlockState }
 export interface Hit { x:number;y:number;z:number;normal:THREE.Vector3;state:BlockState;distance:number }
 // Grid coordinates use block centers at integers; +0.5 maps them to unit DDA cells.
-export function traceBlocks(world: RayWorld,origin: THREE.Vector3,direction: THREE.Vector3,maxDistance=6): Hit|null {
+export function traceBlocks(world: RayWorld,origin: THREE.Vector3,direction: THREE.Vector3,maxDistance=6,includeFluid=false): Hit|null {
   const ox=origin.x+.5,oy=origin.y+.5,oz=origin.z+.5;
   let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz),distance=0;
   const dx=direction.x,dy=direction.y,dz=direction.z;
@@ -16,9 +16,11 @@ export function traceBlocks(world: RayWorld,origin: THREE.Vector3,direction: THR
   let normal=new THREE.Vector3();
   for(let i=0;i<96 && distance<=maxDistance;i++) {
     const s=world.getState(x,y,z);
-    if(s.type!==Block.Air && s.type!==Block.Water) {
+    if(s.type!==Block.Air && (includeFluid||!isFluid(s.type))) {
       const decorative=s.type===Block.Plant||s.type===Block.Flower;
+      const thin=[Block.Wire,Block.Plate,Block.Rail,Block.Repeater].includes(s.type);
       const shapes:Box[]=decorative?[{minX:-.2,maxX:.2,minY:-.35,maxY:.35,minZ:-.2,maxZ:.2}]:
+        thin?[{minX:-.5,maxX:.5,minY:-.5,maxY:-.35,minZ:-.5,maxZ:.5}]:
         isShaped(s.type)?collisionBoxes(s):[];
       const shapeHit=shapes.length ? shapes.some(box=>rayBox(origin,direction,x,y,z,distance,Math.min(tx,ty,tz),box)) : true;
       if(shapeHit) return {x,y,z,normal:normal.clone(),state:s,distance};
