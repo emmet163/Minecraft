@@ -92,6 +92,61 @@ export function craft(grid:InventoryGrid,width:number,station:boolean,output:Inv
   for(let i=0;i<grid.size;i++){const s=grid.get(i);if(!isEmpty(s))grid.set(i,stack(s.id,s.count-1,s.damage));}
   output.load(trial.snapshot());return recipe;
 }
+// Each operation validates capacity before mutating either side of the transfer.
+export function craftToCursor(grid:InventoryGrid,width:number,station:boolean,cursor:Stack):{recipe:Recipe;cursor:Stack}|undefined{
+  const recipe=matchRecipe(grid,width,station);if(!recipe)return;
+  const capacity=item(recipe.output).stack;
+  if(!isEmpty(cursor)&&(cursor.id!==recipe.output||cursor.damage!==0))return;
+  if(cursor.count+recipe.count>capacity)return;
+  for(let i=0;i<grid.size;i++){const s=grid.get(i);if(!isEmpty(s))grid.set(i,stack(s.id,s.count-1,s.damage));}
+  return {recipe,cursor:stack(recipe.output,cursor.count+recipe.count)};
+}
+export function transferSlot(source:InventoryGrid,index:number,targets:InventoryGrid[],allowed:(target:InventoryGrid,index:number)=>boolean=()=>true):number{
+  const original=source.get(index);if(isEmpty(original))return 0;
+  let remaining=original.count;const trials=[...new Set(targets)].filter(target=>target!==source).map(target=>({target,trial:new InventoryGrid(target.size)}));
+  for(const {target,trial} of trials)trial.load(target.snapshot());
+  for(const {trial,target} of trials){
+    for(let i=0;i<trial.size&&remaining>0;i++){const s=trial.get(i);if(!allowed(target,i)||s.id!==original.id||s.damage!==original.damage)continue;
+      const take=Math.min(item(s.id).stack-s.count,remaining);if(take>0){trial.set(i,stack(s.id,s.count+take,s.damage));remaining-=take;}}
+  }
+  for(const {trial,target} of trials){
+    for(let i=0;i<trial.size&&remaining>0;i++){if(!allowed(target,i)||!isEmpty(trial.get(i)))continue;
+      const take=Math.min(item(original.id).stack,remaining);trial.set(i,stack(original.id,take,original.damage));remaining-=take;}
+  }
+  if(remaining===original.count)return 0;
+  source.set(index,stack(original.id,remaining,original.damage));
+  for(const {target,trial} of trials)target.load(trial.snapshot());
+  return original.count-remaining;
+}
+export function transferWithin(grid:InventoryGrid,index:number,targets:number[]):number{
+  const original=grid.get(index);if(isEmpty(original))return 0;
+  const trial=new InventoryGrid(grid.size);trial.load(grid.snapshot());let remaining=original.count;
+  const eligible=[...new Set(targets)].filter(i=>Number.isInteger(i)&&i>=0&&i<grid.size&&i!==index);
+  for(const i of eligible){const s=trial.get(i);if(s.id!==original.id||s.damage!==original.damage)continue;
+    const take=Math.min(item(s.id).stack-s.count,remaining);if(take>0){trial.set(i,stack(s.id,s.count+take,s.damage));remaining-=take;}}
+  for(const i of eligible){if(!remaining)break;if(!isEmpty(trial.get(i)))continue;
+    const take=Math.min(item(original.id).stack,remaining);trial.set(i,stack(original.id,take,original.damage));remaining-=take;}
+  if(remaining===original.count)return 0;
+  trial.set(index,stack(original.id,remaining,original.damage));grid.load(trial.snapshot());return original.count-remaining;
+}
+export function distributeCursor(grid:InventoryGrid,indexes:number[],cursor:Stack,oneEach:boolean,allowed:(index:number)=>boolean=()=>true):Stack{
+  if(isEmpty(cursor))return empty();
+  const unique=[...new Set(indexes)].filter(i=>Number.isInteger(i)&&i>=0&&i<grid.size&&allowed(i));
+  const trial=new InventoryGrid(grid.size);trial.load(grid.snapshot());
+  const eligible=unique.filter(i=>{const s=trial.get(i);return isEmpty(s)||s.id===cursor.id&&s.damage===cursor.damage&&s.count<item(cursor.id).stack;});
+  if(!eligible.length)return cursor;
+  let remaining=cursor.count;
+  if(oneEach){for(const i of eligible){if(!remaining)break;const s=trial.get(i);trial.set(i,stack(cursor.id,s.count+1,cursor.damage));remaining--;}}
+  else{const base=Math.floor(remaining/eligible.length),extra=remaining%eligible.length;
+    for(let j=0;j<eligible.length;j++){const i=eligible[j]!,s=trial.get(i);
+      const take=Math.min(item(cursor.id).stack-s.count,base+(j<extra?1:0));
+      if(take>0){trial.set(i,stack(cursor.id,s.count+take,cursor.damage));remaining-=take;}}
+    // Reallocate shares that hit a stack limit without losing the remainder.
+    while(remaining>0){let moved=false;for(const i of eligible){const s=trial.get(i);if(s.count>=item(cursor.id).stack)continue;
+      trial.set(i,stack(cursor.id,s.count+1,cursor.damage));remaining--;moved=true;if(!remaining)break;}if(!moved)break;}
+  }
+  grid.load(trial.snapshot());return stack(cursor.id,remaining,cursor.damage);
+}
 export class Furnace {
   slots=new InventoryGrid(3);burn=0;progress=0;
   tick(seconds:number):boolean {
@@ -128,5 +183,5 @@ export class GameItems {
   chest(key:string){if(!this.chests.has(key))this.chests.set(key,new InventoryGrid(27));return this.chests.get(key)!;}
   furnace(key:string){if(!this.furnaces.has(key))this.furnaces.set(key,new Furnace());return this.furnaces.get(key)!;}
   snapshot():ItemsSave{return {slots:this.slots.snapshot(),equipment:this.equipment.snapshot(),selected:this.selected,tool:this.tool,cursor:clone(this.cursor),personal:this.personal.snapshot(),stations:[...this.stations].map(([k,v])=>[k,v.snapshot()]),chests:[...this.chests].map(([k,v])=>[k,v.snapshot()]),furnaces:[...this.furnaces].map(([k,v])=>[k,v.snapshot()]),generatedLoot:[...this.generatedLoot]};}
-  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','shovel'].includes(save.tool)?save.tool:'hand';this.cursor=save.cursor&&catalog.has(save.cursor.id)?clone(save.cursor):empty();for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);for(const key of save.generatedLoot||[])this.generatedLoot.add(key);}
+  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','shovel'].includes(save.tool)?save.tool:'hand';const cursorGrid=new InventoryGrid(1);cursorGrid.load(save.cursor?[save.cursor]:[]);this.cursor=clone(cursorGrid.get(0));for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);for(const key of save.generatedLoot||[])this.generatedLoot.add(key);}
 }

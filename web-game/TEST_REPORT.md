@@ -1,5 +1,27 @@
 # Stonewake web test report
 
+## Crafting overhaul, Part 1 (2026-11-16)
+
+**Baseline:** Checkpoint `dd455b3`; only the unrelated `preview-site/` directory was untracked. Reviewed item definitions, the 36-slot bag and hotbar, crafting grids and recipes, inventory input, IndexedDB snapshots, existing reports, and relevant browser tests. Before changes, TypeScript checking, 52 Vitest tests in ten files, and the production build passed.
+
+**Implemented:** Personal 2×2 and station 3×3 grids now show a separate recipe output slot beside the grid. Taking the output puts it on the cursor; Shift-click or the existing Craft button puts one output in the bag. Ingredients are consumed only after capacity is checked. Added validated cursor crafting, metadata-preserving quick transfers, hotbar/bag moves, left-drag distribution, right-drag single placement, full-bag cursor retention on close, and safe cursor restoration from saved data. Existing recipes, item IDs, equipment durability, chests, furnaces, and save structure remain in use. UI layout follows the provided grid/output arrangement without a recipe-book or final visual redesign.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `npm run typecheck`, `npm test`, `npm run build` | Passed: 52 tests in ten files, production build. |
+| Final `npm run typecheck` | Passed. |
+| Final `npm test` | Passed: 56 tests in eleven files. Four new tests cover shaped offsets, shapeless and invalid recipes, 2×2/3×3, repeated crafting, capacity, stack splitting/merging, metadata, partial/full transfers, drag distribution, and saved grids/cursor. |
+| Final `npm run build` | Passed: main JS 731.32 kB (197.04 kB gzip), CSS 9.90 kB (3.01 kB gzip). Vite's 500 kB advisory remains. |
+| Playwright `test:crafting-overhaul` on Vite dev | Passed: personal/station output, repeated crafting, right-click split, Shift-transfer, left/right drag, closing, full-bag held item with durability, and IndexedDB reload. No page or console errors. Captured and inspected 1280×720 personal and station screenshots. |
+| Playwright `test:integration` on Vite dev | Passed: movement, mining, inventory crafting/equipment, survival, flight, and reload; no browser errors. |
+| Playwright `test:stations` on Vite dev | Passed: chest transfer/reload, furnace smelting, 3×3 crafting, bed, persistence; no browser errors. |
+| Playwright `test:final` on Vite dev | Passed: named worlds, same-seed isolation, inventory/health/edit reload, backup recovery; no browser errors. |
+| Playwright `test:browser` on built preview | Passed: WebGL, movement, mining, placement, saved edits, pause; no page or console errors. |
+
+**Bugs found and fixed:** Initial browser testing found that clicking an output icon did not activate its parent button, leaving ingredients untouched; click delegation now resolves the button and the browser test passed. Review also found that closing with a full bag would drop the cursor stack into a transient, unsaved world drop; overflow now remains on the saved cursor. The failed output test and the final browser and automated checks were rerun.
+
+**Performance and limits:** The final built-preview headless Edge/SwiftShader gameplay sample measured 259.6 ms mean/747.2 ms maximum requestAnimationFrame interval and 24.0 MB reported JS heap with seven chunks at the sample point. This short software-rendered run does not measure crafting UI latency or native GPU frame rate. Cross-group drag in one gesture, keyboard-only inventory navigation, touch controls, physical mouse feel, other browsers, and long-session save stress were not verified. No deployment occurred. The Godot project and unrelated `preview-site/` were untouched.
+
 ## Physics improvement, Part 2: swimming and water (2026-11-16)
 
 **Baseline:** Checkpoint `56d896b`; only the unrelated `preview-site/` directory was untracked. Reviewed player physics, collision, world fluids and rendering, survival oxygen, and the previous reports. Before edits, TypeScript checking, 46 Vitest tests in nine files, and the production build passed.

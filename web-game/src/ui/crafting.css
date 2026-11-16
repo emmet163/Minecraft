@@ -1,0 +1,7 @@
+.craft-row{display:flex;align-items:center;gap:12px;max-width:360px}
+.craft-row .craft-grid{flex:1;min-width:0}
+.craft-arrow{color:#e9d9a5;font-size:30px;line-height:1}
+.craft-row #craft-output{width:72px;height:64px;flex:none;border-color:#d9bd79}
+.craft-row #craft-output:disabled{opacity:.5;cursor:default}
+.craft-row #craft-output .item-icon{width:24px;height:24px}
+@media(max-width:760px){.craft-row #craft-output{width:60px;height:54px}.craft-arrow{font-size:24px}}

@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Crafting overhaul, Part 1
+
+- The 2×2 and 3×3 grids, output slot, transfers, and drag distribution are functional. Dragging distributes within one slot group per gesture; dragging from the bag into the crafting grid in the same gesture is not supported. Move the held stack between groups with a click first.
+- When the bag has no room on closing, the held stack stays in the saved cursor state and appears again when the inventory opens. The explicit **Drop held stack into world** action still creates a transient world drop, which the existing game does not save.
+- The existing recipe guide is a simple list of available recipes. A graphical recipe book and final inventory visual redesign are reserved for Part 2. Keyboard-only item movement and touch drag controls were not verified.
+- Headless Edge/SwiftShader browser checks passed, but physical mouse feel, other browsers, long-session persistence under rapid repeated saves, and native GPU performance were not measured. The production JS remains above Vite's 500 kB advisory.
+
 ## Physics improvement, Part 2
 
 - Swimming and buoyancy now work for the player in loaded water. The model uses approximate body overlap and locally sampled water height; it does not simulate currents, wave forces, or water pressure. Creative flight overrides swimming. Creatures and vehicles retain their prior water behavior.

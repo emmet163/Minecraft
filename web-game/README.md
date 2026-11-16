@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Crafting overhaul, Part 1
+
+Press **E** for the personal 2×2 crafting grid or interact with a crafting station for its 3×3 grid. A valid recipe appears in the output slot; click it to take the result onto the cursor, or Shift-click it or use **Craft to inventory** to place one result directly in the bag. Ingredients are consumed only when a result is taken. Repeated clicks craft again while ingredients and output capacity remain.
+
+Inventory slots use left-click to pick up, place, merge, or swap; right-click to split a stack or place one item; Shift-click to transfer between storage and the bag or between the bag and hotbar; left-drag to distribute a held stack evenly; and right-drag to place one per eligible slot. **E** or **Escape** closes the screen. Held items return to the bag on closing; if the bag is full, the cursor stack remains saved for the next time the inventory opens. The grid ingredients, containers, equipment damage, and cursor are included in the existing IndexedDB player save. Run `npm run test:crafting-overhaul` against the Vite development server for the browser interaction test.
+
 ## Swimming and water (physics improvement, Part 2)
 
 The player wades in shallow water, floats near a deep-water surface, and swims with WASD. Hold **Space** to rise or **Shift/Ctrl** to dive; looking up or down while moving also nudges vertical travel. Water applies buoyancy and drag while retaining gravity, collision, oxygen loss when the head is submerged, and drowning damage. Leaving water restores normal land movement. Creative flight still takes priority over swimming.

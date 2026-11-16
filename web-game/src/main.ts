@@ -3,6 +3,7 @@ import './style.css';
 import './ui/phase7.css';
 import './ui/phase8.css';
 import './ui/phase9.css';
+import './ui/crafting.css';
 import {Block,blockNames,dropType,isReplaceable,isSolid,state} from './world/blocks';
 import {VoxelWorld} from './world/world';
 import {IndexedDbEditStore,validGameSave,type GameSave,type WorldInfo} from './persistence/edits';
