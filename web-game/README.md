@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Visual improvement, Part 1
+
+All six original creature species now have distinctive voxel details, original 16-pixel procedural skins, readable faces, and smoother blended walking, fleeing, idle, attack, hurt, and death motion. Their visual bounds and hitboxes were aligned, while their existing AI, health, loot, and combat rules remain in place. Creature parts use one shared-atlas material per cube. Authorized custom GLB/glTF models can be loaded through `CreatureSystem.loadGltfModel(id, url)` or supplied with `registerModel(id, factory)`; the factory must return a fresh object for each creature. The built-in model remains the default. Imported animation clips are not mapped to creature states yet.
+
+Dropped blocks now use small textured cubes with the block registry's top, side, and bottom atlas faces, including transparent glass. Non-block loot receives original category and tier art. Hotbar and inventory icons use the same source art. The mining loot rule still determines the item: for example, mined grass yields dirt.
+
 ## Run locally
 
 Install Node.js 20.19+ or 22.12+ and npm. From `web-game/`:
@@ -32,6 +38,7 @@ npm run test:advanced
 npm run test:visuals
 npm run test:final
 npm run test:performance
+npm run test:visual-improvement
 ```
 
 Set `STONEWAKE_URL=http://127.0.0.1:4173/` to run a browser test against the production preview. In PowerShell, use `$env:STONEWAKE_URL='http://127.0.0.1:4173/'`. Set `STONEWAKE_BROWSER=chromium` or `msedge` to choose a Playwright browser channel. The fixture-based browser tests (`test:integration` through `test:final`) require the Vite development server and `?test=1`; `test:browser` and `test:performance` also work against the built preview.

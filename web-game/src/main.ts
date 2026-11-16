@@ -33,8 +33,9 @@ import {AutomationSystem} from './world/automation';
 import {FarmingSystem} from './world/farming';
 import {VehicleSystem} from './gameplay/transport';
 import {EffectSystem} from './gameplay/effects';
+import {DropVisuals} from './render/drops';
 
-type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number};
+type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number;bob:number};
 const settingsKey='stonewake-web-settings';
 const cellKey=(x:number,y:number,z:number)=>`${x},${y},${z}`;
 class Game{
@@ -57,8 +58,7 @@ class Game{
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
-  private readonly dropGeometry=new THREE.BoxGeometry(.28,.28,.28);
-  private readonly dropMaterial=new THREE.MeshLambertMaterial({color:'#e9cc85'});
+  readonly dropVisuals=new DropVisuals();
   paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
   private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private hudClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;private stepClock=0;
@@ -355,12 +355,14 @@ class Game{
     if(type===Block.Door){if(ny+1>=HEIGHT||!isReplaceable(this.world.get(nx,ny+1,nz))||this.player.overlapsBlock(nx,ny+1,nz))return;changes.push({x:nx,y:ny+1,z:nz,state:state(type,properties|4)});}
     this.editBusy=true;if(await this.world.apply(changes)){if(this.life.mode==='survival')this.items.spendSelected();this.sounds.play(false);this.hud.renderHotbar(this.life);this.hud.showNotice(`Placed ${blockNames[type]}`);void this.saveNow();}this.editBusy=false;
   }
-  private spawnItem(value:Stack,position:THREE.Vector3){if(isEmpty(value))return;const mesh=new THREE.Mesh(this.dropGeometry,this.dropMaterial);mesh.position.copy(position);this.scene.add(mesh);this.drops.push({mesh,item:{...value},age:0,velocity:1.5});}
+  private spawnItem(value:Stack,position:THREE.Vector3){if(isEmpty(value))return;const mesh=this.dropVisuals.create(value.id);mesh.position.copy(position);this.scene.add(mesh);this.drops.push({mesh,item:{...value},age:0,velocity:1.5,bob:0});}
   private removeDrop(index:number){const drop=this.drops[index]!;this.scene.remove(drop.mesh);this.drops.splice(index,1);}
   private clearDrops(){for(let i=this.drops.length-1;i>=0;i--)this.removeDrop(i);}
   private updateDrops(delta:number){for(let i=this.drops.length-1;i>=0;i--){const d=this.drops[i]!;d.age+=delta;d.mesh.rotation.y+=delta*1.3;if(d.age>300){this.removeDrop(i);continue;}
-    d.velocity-=16*delta;const next=d.mesh.position.y+d.velocity*delta,b=this.world.get(Math.round(d.mesh.position.x),Math.floor(next+.36),Math.round(d.mesh.position.z));
-    if(b===Block.Air||b===Block.Water)d.mesh.position.y=next;else d.velocity=0;
+    const physicalY=d.mesh.position.y-d.bob;d.velocity-=16*delta;const next=physicalY+d.velocity*delta;
+    const b=this.world.get(Math.round(d.mesh.position.x),Math.floor(next+.36),Math.round(d.mesh.position.z));
+    const resting=b!==Block.Air&&b!==Block.Water;if(resting)d.velocity=0;
+    d.bob=resting?Math.sin(d.age*2.7)*.045:0;d.mesh.position.y=(resting?physicalY:next)+d.bob;
     const p=this.player.position,dx=d.mesh.position.x-p.x,dy=d.mesh.position.y-p.y-1,dz=d.mesh.position.z-p.z;
     if(d.age>.4&&dx*dx+dy*dy+dz*dz<1.7**2){const left=this.items.slots.add(d.item.id,d.item.count,d.item.damage);if(left<d.item.count){d.item.count=left;this.hud.renderHotbar(this.life);void this.saveNow();if(!left){this.hud.showNotice(`Collected ${item(d.item.id).name}`);this.removeDrop(i);}}}
   }}
@@ -435,7 +437,7 @@ class Game{
         this.navigation.update(this.player.position,this.player.yaw,this.world.generator.structures);}
       if(this.trade.open&&(!this.trade.creature?.alive||!this.creatures.creatures.includes(this.trade.creature)))this.trade.close();
       this.saveClock+=delta;if(this.saveClock>=5){this.saveClock=0;void this.saveNow();}
-      if(this.inventory.open&&this.items.furnaces.size&&Math.floor(performance.now()/250)!==Math.floor((performance.now()-delta*1000)/250))this.inventory.render();
+      if(this.inventory.open&&this.inventory.mode==='furnace'&&Math.floor(performance.now()/250)!==Math.floor((performance.now()-delta*1000)/250))this.inventory.refreshFurnace();
     }
     if(this.paused||this.inventory.open||this.trade.open||this.navigation.open){this.idleRenderClock+=delta;if(this.idleRenderClock>=1){this.idleRenderClock=0;this.renderer.render(this.scene,this.player.camera);}}
     else {this.idleRenderClock=1;this.renderer.render(this.scene,this.player.camera);}

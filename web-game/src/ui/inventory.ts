@@ -1,6 +1,7 @@
 import {Block,blockNames,selectableBlocks} from '../world/blocks';
 import {GameItems,InventoryGrid,craft,isEmpty,item,matchRecipe,recipes,smelting,type Recipe,type Stack,empty} from '../items/items';
 import {SurvivalState} from '../survival/state';
+import {itemIconUrl} from '../render/drops';
 export type InventoryMode='personal'|'station'|'chest'|'furnace';
 export class InventoryView{
   readonly overlay:HTMLElement;
@@ -46,7 +47,7 @@ export class InventoryView{
   private dropHeld(){if(isEmpty(this.items.cursor))return;this.onDrop(this.items.cursor);this.items.cursor=empty();this.onChange();this.render();}
   private slots(grid:InventoryGrid,group:string):string{
     return grid.slots.map((s,i)=>`<button class="inv-slot" data-grid="${group}" data-index="${i}" title="${isEmpty(s)?'Empty':`${item(s.id).name} ×${s.count}\n${item(s.id).description}${item(s.id).attack?`\nAttack ${item(s.id).attack}`:''}${item(s.id).durability?`\nDurability ${item(s.id).durability-s.damage}/${item(s.id).durability} · Tier ${item(s.id).tier}`:''}`}">
-      <b>${isEmpty(s)?'·':item(s.id).name}</b><em>${s.count||''}</em></button>`).join('');
+      ${isEmpty(s)?'':`<img class="item-icon" src="${itemIconUrl(s.id)}" alt="">`}<b>${isEmpty(s)?'·':item(s.id).name}</b><em>${s.count||''}</em></button>`).join('');
   }
   private showRecipe(id:string){const recipe=recipes.find(value=>value.id===id);const label=this.overlay.querySelector('#recipe-details');if(!label||!recipe)return;
     const materials=[...new Set(recipe.inputs.filter(Boolean))].map(input=>`${item(input).name} ×${recipe.inputs.filter(value=>value===input).length}`).join(', ');
@@ -64,9 +65,20 @@ export class InventoryView{
       <h3>${width}×${width} CRAFTING${ready?` · READY: ${item(ready.output).name} ×${ready.count}`:''}</h3><div class="inventory-grid craft-grid" style="--columns:${width}">${this.slots(crafting,'craft')}</div>
       <button id="craft-item" ${ready?'':'disabled'}>Craft</button>
       ${storage?`<h3>${furnace?'INPUT / FUEL / OUTPUT':'STORAGE'}</h3><div class="inventory-grid ${furnace?'furnace-grid':'chest-grid'}">${this.slots(storage,'storage')}</div>`:''}
-      ${furnace?`<p>Heat ${furnace.burn.toFixed(1)}s · Smelting ${Math.round(furnace.progress/(smelting.get(furnace.slots.get(0).id)?.seconds||4)*100)}%</p>`:''}
+      ${furnace?`<p id="furnace-progress">Heat ${furnace.burn.toFixed(1)}s · Smelting ${Math.round(furnace.progress/(smelting.get(furnace.slots.get(0).id)?.seconds||4)*100)}%</p>`:''}
       ${this.mode==='personal'||this.mode==='station'?`<h3>RECIPE GUIDE</h3><select id="recipe-guide"><option value="">Select a recipe</option>${available.map(r=>`<option value="${r.id}">${item(r.output).name} ×${r.count}</option>`).join('')}</select><p id="recipe-details"></p>`:''}
       ${this.life.mode==='creative'?`<h3>CREATIVE BLOCK PALETTE</h3><select id="creative-palette">${selectableBlocks.map(i=>`<option value="${i}" ${this.life.creativeBlock===i?'selected':''}>${blockNames[i]}</option>`).join('')}</select>`:''}
       </div></section><div id="held-stack">${isEmpty(this.items.cursor)?'':`${item(this.items.cursor.id).name} ×${this.items.cursor.count}`}</div>`;
+  }
+  refreshFurnace(){if(!this.open||this.mode!=='furnace')return;
+    const furnace=this.items.furnace(this.cell),progress=this.overlay.querySelector('#furnace-progress');
+    if(progress)progress.textContent=`Heat ${furnace.burn.toFixed(1)}s · Smelting ${Math.round(furnace.progress/(smelting.get(furnace.slots.get(0).id)?.seconds||4)*100)}%`;
+    for(let i=0;i<3;i++){const s=furnace.slots.get(i),button=this.overlay.querySelector<HTMLElement>(`[data-grid="storage"][data-index="${i}"]`);
+      if(!button)continue;button.querySelector('b')!.textContent=isEmpty(s)?'·':item(s.id).name;
+      button.querySelector('em')!.textContent=s.count?String(s.count):'';
+      let icon=button.querySelector<HTMLImageElement>('.item-icon');if(isEmpty(s)){icon?.remove();continue;}
+      if(!icon){icon=document.createElement('img');icon.className='item-icon';icon.alt='';button.prepend(icon);}
+      const url=itemIconUrl(s.id);if(icon.src!==url)icon.src=url;
+    }
   }
 }

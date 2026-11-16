@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Visual improvement, Part 1
+
+- The built-in mobs use original procedural voxel skins and simple state-driven motion. External GLB/glTF loading is available for authorized user assets but was not tested with a supplied file; imported clips are not yet mapped to AI animation states. A custom model factory must return a fresh object per creature. No Minecraft proprietary assets are included.
+- Hitboxes now encompass each model's basic visual bounds and can make broad or long-headed creatures less nimble around narrow obstacles. Detailed per-limb collision is not simulated.
+- Dropped non-block items are still small textured cubes, with distinct original item art rather than full 3D tool or food silhouettes. Transparent glass is approximate alpha blending. Drops and creature bodies do not use realistic physics or skeletal animation.
+- Headless Edge/SwiftShader remained slow in the short browser samples. The main bundle exceeds Vite's 500 kB advisory. Native GPU performance, long-session GPU/JS memory stability, other browsers, and mobile/touch visuals were not measured.
+
 ## Phase 10 review
 
 - **Frame rate:** The 60 FPS at 1080p target remains unverified. A 25-chunk built-preview run at 1920×1080 on headless Edge/SwiftShader averaged 250.8 ms between frames (487.1 ms maximum); 1280×720 averaged 133.1 ms. This is software rendering and cannot predict native GPU performance. Main-thread generation/meshing and advanced simulations can still stall frames. The main JS output is 666.00 kB and exceeds Vite's 500 kB advisory.

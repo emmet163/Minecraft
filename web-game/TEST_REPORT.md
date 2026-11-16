@@ -1,5 +1,30 @@
 # Stonewake web test report
 
+## Visual improvement, Part 1 (2026-11-16)
+
+**Starting point:** Git checkpoint `1056512`; only unrelated `preview-site/` was untracked. Before edits, strict TypeScript checks, 42 Vitest tests in eight files, and the Vite production build passed. Creature definitions, models, animation and AI, block registry, loot mapping, drop rendering, inventory, persistence, and prior reports were inspected. No original Minecraft assets were found or imported.
+
+**Implemented:** Original procedural six-face creature skins and additional silhouette details for all six existing species; aligned body bounds and collision/target sizes; blended gait, idle/head, facing, attack, hurt, and death visual feedback; optional factory and lazy GLB/glTF loader for user-provided authorized models. Dropped blocks and items use original textured miniature cubes with the correct block side/top/bottom atlas faces, transparent glass, distinct non-block item art, matching inventory/hotbar icons, and a small resting bob. Shared geometries, cached materials, and single-material cube atlases limit draw calls. Existing AI, mining loot, item identity, combat, and persistence behavior were retained.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `npm run typecheck`, `npm test`, `npm run build` | Passed: 42 tests, eight files, production build. |
+| Focused Vitest additions | Four new tests for all species' model bounds/texture, facing/animation/death, custom model factory, block-drop identity and face textures, inventory/placement identity. Total 46 passing tests in nine files on the latest run. |
+| Browser `test:visual-improvement` on Vite dev | Passed: original animal and enemy models, dirt/wood/glass drops, cube face data, matching hotbar icon, screenshots; no console/page errors. Screenshots were inspected. |
+| Browser `test:creatures` on Vite dev | Passed: night spawns, targeting, sword/armor, retaliation, ranged damage, drops/XP, 24-creature cap; no browser errors. |
+| Browser `test:integration` on Vite dev | Passed: spawn, movement, jump, mine, craft, equip, damage, food, death/respawn, flight, IndexedDB reload; no browser errors. |
+| Browser `test:browser` on final built preview | Passed: WebGL, 11 chunks at its early sample, pointer lock, movement, mining, placement, two saved edits after reload, pause; no browser errors. |
+| Browser `test:stations` on Vite dev | Initial run timed out when a live furnace repeatedly replaced crafting-grid buttons. After the in-place furnace refresh fix, the final rerun passed chest, furnace, 3×3 crafting, bed, and persistence checks with no browser errors. |
+| Browser `test:exploration` and `test:final` on Vite dev | Passed: village/trading/loot and named-world/inventory/health/edit/backup persistence; no browser errors. |
+| Browser `test:advanced` on Vite dev | Passed: fluid reaction, circuit lamp, crop growth, cart, status effect, save/reload, and two-way Veil transition; no browser errors. |
+| Final `npm run typecheck`, `npm test`, `npm run build` | Passed: 46 tests in nine files. `dist/` contains the main JS at 721.04 kB (193.95 kB gzip), CSS at 9.43 kB (2.91 kB gzip), and lazily loaded optional glTF module at 45.32 kB (13.40 kB gzip). Vite's 500 kB advisory remains. |
+
+**Bugs fixed:** Existing mob geometry extended beyond its collision/target bounds; those definitions were aligned. The first visual test placed creatures above terrain and could let drops enter pickup range; the fixture now uses terrain height and positions drops farther away. The browser station test exposed periodic inventory DOM replacement while a furnace was active; furnace updates now keep slot buttons stable. Failed automated checks were rerun after fixes.
+
+**Measured performance:** The creature regression's 24-creature headless Edge/SwiftShader run measured 136.9 ms mean and 170.8 ms maximum requestAnimationFrame interval, with 26.4 MB reported JS heap. Its one-creature sample measured 99.3 ms mean/113.3 ms maximum, 28.1 MB JS heap. The final built-preview gameplay sample measured 104.8 ms mean/115.8 ms maximum and 28.6 MB JS heap. These short software-rendered samples are not native GPU frame rates or total process memory; no 60 FPS claim is made. The main Vite JS bundle remains above its 500 kB advisory.
+
+**Not verified:** Actual loading of a user-supplied GLB/glTF file or mapping imported animation clips, perceived audio, long-session memory stability, other browsers, native GPU frame rates, and every visual state in every biome. The factory path was unit tested; the optional external-asset parser was built but not exercised with a supplied asset. The glass-drop screenshot was inspected separately. No deployment occurred.
+
 ## Phase 10 — final reliability and deployment review (2026-11-13)
 
 **Starting point:** Commit `22fae93` (Phase 9); the unrelated `preview-site/` was untracked and left untouched. Before edits, strict TypeScript checking, 39 Vitest tests in seven files, and the production build passed. The browser architecture, persistence, chunks, inventory, crafting, creatures, combat, UI, and prior reports were inspected.

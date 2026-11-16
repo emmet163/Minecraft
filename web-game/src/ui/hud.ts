@@ -3,6 +3,7 @@ import {biomeNames,type Biome} from '../world/generator';
 import {GameItems,isEmpty,item} from '../items/items';
 import {SurvivalState,WorldCycle,type Mode,type Difficulty} from '../survival/state';
 import type {WorldInfo} from '../persistence/edits';
+import {itemIconUrl} from '../render/drops';
 import {parseQuality,type Quality} from '../render/quality';
 import type {AudioSettings} from '../render/sounds';
 export class Hud{
@@ -84,7 +85,7 @@ export class Hud{
   renderHotbar(life?:SurvivalState){
     const creative=life?.mode==='creative';
     this.root.querySelector('#hotbar')!.innerHTML=Array.from({length:9},(_,i)=>{
-      const s=this.items.slots.get(i);return `<div class="slot ${i===this.items.selected?'selected':''}" title="${isEmpty(s)?'Empty':item(s.id).description}"><kbd>${i+1}</kbd><b>${isEmpty(s)?'Empty':item(s.id).name}</b><em>${s.count||''}</em></div>`;
+      const s=this.items.slots.get(i);return `<div class="slot ${i===this.items.selected?'selected':''}" title="${isEmpty(s)?'Empty':item(s.id).description}"><kbd>${i+1}</kbd>${isEmpty(s)?'':`<img class="item-icon" src="${itemIconUrl(s.id)}" alt="">`}<b>${isEmpty(s)?'Empty':item(s.id).name}</b><em>${s.count||''}</em></div>`;
     }).join('');
     const selected=this.items.selectedStack(),weapon=this.items.equipment.get(3);
     this.root.querySelector('#tool')!.textContent=creative?`CREATIVE · ${blockNames[life!.creativeBlock]} · Space/Ctrl fly`:

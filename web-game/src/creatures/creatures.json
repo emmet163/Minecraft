@@ -1,5 +1,5 @@
 [
-  {"id":"mossback","name":"Mossback","kind":"peaceful","attackMode":"none","biomes":["Plains","Forest","Swamp"],"health":12,"speed":1.25,"damage":0,"range":0,"cooldown":0,"experience":2,"drop":"berries","dropCount":2,"radius":0.42,"height":1.35,"parts":[
+  {"id":"mossback","name":"Mossback","kind":"peaceful","attackMode":"none","biomes":["Plains","Forest","Swamp"],"health":12,"speed":1.25,"damage":0,"range":0,"cooldown":0,"experience":2,"drop":"berries","dropCount":2,"radius":0.82,"height":1.64,"parts":[
     {"size":[1.25,0.72,0.75],"offset":[0,0.88,0],"color":"#72966b"},
     {"size":[0.48,0.5,0.5],"offset":[0,1.22,-0.56],"color":"#a5b584","role":"head"},
     {"size":[0.21,0.55,0.22],"offset":[-0.42,0.33,-0.25],"color":"#4c705d","role":"leg"},
@@ -8,7 +8,7 @@
     {"size":[0.21,0.55,0.22],"offset":[0.42,0.33,0.28],"color":"#4c705d","role":"leg"},
     {"size":[0.7,0.16,0.6],"offset":[0,1.3,0.1],"color":"#3c734d"}
   ]},
-  {"id":"crag_guardian","name":"Crag Guardian","kind":"neutral","attackMode":"melee","biomes":["Mountains","Snow","Forest"],"health":24,"speed":1.65,"damage":3,"range":1.65,"cooldown":1.4,"experience":5,"drop":"stone","dropCount":2,"radius":0.45,"height":1.75,"parts":[
+  {"id":"crag_guardian","name":"Crag Guardian","kind":"neutral","attackMode":"melee","biomes":["Mountains","Snow","Forest"],"health":24,"speed":1.65,"damage":3,"range":1.65,"cooldown":1.4,"experience":5,"drop":"stone","dropCount":2,"radius":0.7,"height":2.05,"parts":[
     {"size":[0.85,1.0,0.65],"offset":[0,1.05,0],"color":"#7d8a88"},
     {"size":[0.62,0.45,0.6],"offset":[0,1.63,-0.06],"color":"#adb9a7","role":"head"},
     {"size":[0.28,0.65,0.36],"offset":[-0.56,1.05,0],"color":"#596d6d"},
@@ -17,7 +17,7 @@
     {"size":[0.28,0.55,0.34],"offset":[0.25,0.31,0],"color":"#4d6669","role":"leg"},
     {"size":[0.24,0.12,0.04],"offset":[0,1.67,-0.38],"color":"#83c0a8"}
   ]},
-  {"id":"dusk_stalker","name":"Dusk Stalker","kind":"hostile","attackMode":"melee","biomes":["Plains","Forest","Swamp","Desert","Mountains","Snow","Beach"],"health":14,"speed":2.8,"damage":2.5,"range":1.55,"cooldown":1.1,"experience":4,"drop":"coal","dropCount":1,"radius":0.36,"height":1.55,"parts":[
+  {"id":"dusk_stalker","name":"Dusk Stalker","kind":"hostile","attackMode":"melee","biomes":["Plains","Forest","Swamp","Desert","Mountains","Snow","Beach"],"health":14,"speed":2.8,"damage":2.5,"range":1.55,"cooldown":1.1,"experience":4,"drop":"coal","dropCount":1,"radius":0.55,"height":1.78,"parts":[
     {"size":[0.7,0.85,0.55],"offset":[0,0.95,0],"color":"#514b68"},
     {"size":[0.54,0.5,0.52],"offset":[0,1.51,-0.03],"color":"#6b5f79","role":"head"},
     {"size":[0.17,0.68,0.2],"offset":[-0.23,0.35,0],"color":"#302e42","role":"leg"},
@@ -25,7 +25,7 @@
     {"size":[0.12,0.08,0.06],"offset":[-0.15,1.56,-0.33],"color":"#ff9c6c"},
     {"size":[0.12,0.08,0.06],"offset":[0.15,1.56,-0.33],"color":"#ff9c6c"}
   ]},
-  {"id":"ember_spitter","name":"Ember Spitter","kind":"hostile","attackMode":"ranged","biomes":["Desert","Mountains","Swamp","Plains"],"health":10,"speed":1.9,"damage":2,"range":9,"cooldown":2.3,"experience":5,"drop":"copper","dropCount":1,"radius":0.34,"height":1.2,"parts":[
+  {"id":"ember_spitter","name":"Ember Spitter","kind":"hostile","attackMode":"ranged","biomes":["Desert","Mountains","Swamp","Plains"],"health":10,"speed":1.9,"damage":2,"range":9,"cooldown":2.3,"experience":5,"drop":"copper","dropCount":1,"radius":0.81,"height":1.35,"parts":[
     {"size":[0.72,0.52,0.82],"offset":[0,0.67,0],"color":"#a05e49"},
     {"size":[0.52,0.43,0.53],"offset":[0,1.03,-0.42],"color":"#d08959","role":"head"},
     {"size":[0.18,0.43,0.2],"offset":[-0.26,0.25,-0.16],"color":"#6d453e","role":"leg"},
@@ -34,14 +34,14 @@
     {"size":[0.18,0.43,0.2],"offset":[0.26,0.25,0.29],"color":"#6d453e","role":"leg"},
     {"size":[0.16,0.16,0.13],"offset":[0,1.06,-0.75],"color":"#ffb064"}
   ]},
-  {"id":"hearthfolk","name":"Hearthfolk","kind":"friendly","attackMode":"none","biomes":[],"health":16,"speed":1.45,"damage":0,"range":0,"cooldown":0,"experience":0,"drop":"","dropCount":0,"radius":0.34,"height":1.65,"parts":[
+  {"id":"hearthfolk","name":"Hearthfolk","kind":"friendly","attackMode":"none","biomes":[],"health":16,"speed":1.45,"damage":0,"range":0,"cooldown":0,"experience":0,"drop":"","dropCount":0,"radius":0.5,"height":1.95,"parts":[
     {"size":[0.66,0.75,0.45],"offset":[0,1.03,0],"color":"#8b674e"},
     {"size":[0.52,0.48,0.5],"offset":[0,1.56,0],"color":"#b78965","role":"head"},
     {"size":[0.18,0.7,0.22],"offset":[-0.2,0.35,0],"color":"#4d4e5b","role":"leg"},
     {"size":[0.18,0.7,0.22],"offset":[0.2,0.35,0],"color":"#4d4e5b","role":"leg"},
     {"size":[0.76,0.13,0.68],"offset":[0,1.84,0],"color":"#786347"}
   ]},
-  {"id":"veil_shade","name":"Veil Shade","kind":"hostile","attackMode":"melee","biomes":["Mountains"],"realm":"veil","health":15,"speed":2.6,"damage":3.5,"range":1.6,"cooldown":1.5,"experience":7,"drop":"crystal","dropCount":1,"radius":0.34,"height":1.6,"parts":[
+  {"id":"veil_shade","name":"Veil Shade","kind":"hostile","attackMode":"melee","biomes":["Mountains"],"realm":"veil","health":15,"speed":2.6,"damage":3.5,"range":1.6,"cooldown":1.5,"experience":7,"drop":"crystal","dropCount":1,"radius":0.48,"height":2.05,"parts":[
     {"size":[0.64,0.8,0.45],"offset":[0,1.02,0],"color":"#543f78"},
     {"size":[0.5,0.48,0.47],"offset":[0,1.56,-0.06],"color":"#8a6ab2","role":"head"},
     {"size":[0.16,0.7,0.2],"offset":[-0.19,0.35,0],"color":"#312d50","role":"leg"},

@@ -30,3 +30,5 @@
 #notice{background:#142637d4;padding:5px 9px;border-left:2px solid #f0cd7a;border-radius:3px;pointer-events:none}
 @media(max-width:700px){.bottom{padding-inline:4px}.slot{width:10vw}.panel{max-height:95vh;padding:18px 22px}#overlay .panel,#world-tools{grid-template-columns:1fr}.topline{top:7px;left:7px}}
 @media(prefers-reduced-motion:reduce){.panel button,.inv-slot,.slot{transition:none}}
+.item-icon{width:22px;height:22px;image-rendering:pixelated;object-fit:contain;flex:none;filter:drop-shadow(0 1px 2px #0008)}
+.inv-slot .item-icon{width:20px;height:20px}
