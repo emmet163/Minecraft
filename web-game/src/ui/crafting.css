@@ -1,7 +1,85 @@
-.craft-row{display:flex;align-items:center;gap:12px;max-width:360px}
-.craft-row .craft-grid{flex:1;min-width:0}
-.craft-arrow{color:#e9d9a5;font-size:30px;line-height:1}
-.craft-row #craft-output{width:72px;height:64px;flex:none;border-color:#d9bd79}
-.craft-row #craft-output:disabled{opacity:.5;cursor:default}
-.craft-row #craft-output .item-icon{width:24px;height:24px}
-@media(max-width:760px){.craft-row #craft-output{width:60px;height:54px}.craft-arrow{font-size:24px}}
+/* Original pixel-style crafting interface; gameplay art still comes from the item registry. */
+#inventory{z-index:20;font-family:Consolas,'Courier New',monospace;color:#292c2b}
+#inventory .crafting-shell{display:flex;align-items:flex-start;gap:8px;width:min(1000px,96vw);max-height:94vh}
+#inventory .inventory-panel{display:block;box-sizing:border-box;flex:0 0 650px;width:650px;max-width:100%;min-width:0;max-height:94vh;overflow:auto;padding:16px 18px;
+  border:4px solid #eff0e9;border-right-color:#777b78;border-bottom-color:#777b78;border-radius:3px;background:#c8cbc8;
+  box-shadow:0 0 0 3px #343a39,0 18px 45px #0009,inset 0 0 0 3px #afb4b1}
+#inventory .crafting-shell:not(.book-visible){justify-content:center}
+#inventory .inventory-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:2px 0 10px;border-bottom:2px solid #969c99}
+#inventory .panel-kicker{font-size:10px;font-weight:700;color:#67706c;letter-spacing:.15em}
+#inventory .inventory-heading h2{margin:2px 0 0;color:#313a36;font-size:21px;letter-spacing:.06em;text-shadow:1px 1px #fff8}
+#inventory .heading-actions{display:flex;gap:6px;align-items:center}
+#inventory .inventory-panel button:not(.inv-slot){margin:0;padding:7px 10px;background:#899f88;border:2px solid #f4f5ed;border-right-color:#586958;border-bottom-color:#586958;border-radius:2px;
+  color:#17241d;font:700 11px Consolas,'Courier New',monospace;box-shadow:0 0 0 1px #5b6b5d;cursor:pointer}
+#inventory .inventory-panel button:not(.inv-slot):hover{background:#a7c5a2;transform:none}
+#inventory .inventory-panel button:not(.inv-slot):disabled{opacity:.42;cursor:default}
+#inventory #close-inventory{min-width:31px;background:#b98d86}
+#inventory .inventory-panel h3{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;color:#414843;font-size:13px;text-transform:uppercase;letter-spacing:.07em}
+#inventory .inventory-panel h3 span{font-size:11px;color:#727b74}
+#inventory .inventory-top{display:grid;grid-template-columns:1fr 1fr;gap:20px;min-height:170px;padding:14px 0 13px;border-bottom:2px solid #979d99}
+#inventory .equipment-area{padding-right:14px;border-right:2px solid #a4aaa5}
+#inventory .equip-grid{grid-template-columns:repeat(4,44px);gap:3px}
+#inventory .equipment-area p{margin:7px 0 0;font-size:10px;color:#656d67}
+#inventory .crafting-area{min-width:0}
+#inventory .craft-row{display:flex;align-items:center;gap:12px;max-width:none}
+#inventory .craft-grid{flex:none;grid-template-columns:repeat(var(--columns),44px);gap:3px;max-width:none}
+#inventory .craft-arrow{font-size:34px;font-weight:bold;line-height:1;color:#777e79;text-shadow:1px 1px #f5f6ef}
+#inventory #craft-output{width:52px;height:52px;flex:none;border-color:#f2eed2 #676a5f #676a5f #f2eed2}
+#inventory #craft-output:not(:disabled){background:#858e7c}
+#inventory .crafting-area #craft-item{margin-top:8px!important}
+#inventory .storage-area{padding:12px 0;border-bottom:2px solid #979d99}
+#inventory .chest-grid{grid-template-columns:repeat(9,44px);gap:3px}
+#inventory .furnace-grid{grid-template-columns:repeat(3,44px);gap:3px}
+#inventory .storage-area p{margin:7px 0 0;color:#4f5b53}
+#inventory .inventory-left{padding-top:13px}
+#inventory .bag-grid{display:block}
+#inventory .inv-main-grid,#inventory .inv-hotbar-grid{grid-template-columns:repeat(9,44px);gap:3px}
+#inventory .inv-hotbar-grid{margin-top:11px;padding-top:9px;border-top:2px solid #9aa09c}
+#inventory .inv-slot{position:relative;box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;padding:2px;border:2px solid #656c68;border-right-color:#e7e9e3;border-bottom-color:#e7e9e3;
+  border-radius:0;background:#747c78;color:#fff;box-shadow:inset 2px 2px 0 #555e59;transform:none;transition:none}
+#inventory .inv-slot:hover,#inventory .inv-slot:focus-visible{background:#8b9b8e;border-color:#f5df8d;box-shadow:inset 0 0 0 2px #e9dc9d;transform:none}
+#inventory .inv-slot .item-icon{width:31px;height:31px;image-rendering:pixelated;object-fit:contain;pointer-events:none}
+#inventory .inv-slot b{font-size:0;line-height:0;width:0;height:0;overflow:hidden}
+#inventory .inv-slot em{position:absolute;right:2px;bottom:0;font:bold 12px Consolas,'Courier New',monospace;color:#fff;text-shadow:1px 1px #111,-1px 1px #111,1px -1px #111}
+#inventory .slot-durability{position:absolute;left:3px;right:3px;bottom:2px;height:4px;background:#391f1e;border:1px solid #141f19}
+#inventory .slot-durability i{display:block;height:100%;background:#76d871}
+#inventory .inventory-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding-top:9px;border-top:2px solid #a1a7a2;font-size:10px;color:#59625b}
+#inventory .inventory-footer label{display:flex;gap:5px;align-items:center}
+#inventory .inventory-footer select{max-width:135px;background:#e0e4dd;color:#27352b}
+#inventory #recipe-book{box-sizing:border-box;flex:0 0 300px;width:300px;max-height:94vh;display:flex;flex-direction:column;min-height:0;padding:13px;
+  border:4px solid #e8eae3;border-right-color:#747b75;border-bottom-color:#747b75;border-radius:3px;background:#c3c7c2;box-shadow:0 0 0 3px #343a39,0 18px 45px #0009,inset 0 0 0 3px #adb4ac}
+#inventory .book-heading{display:flex;gap:9px;align-items:center;margin-bottom:10px;border-bottom:2px solid #9aa39a;padding-bottom:7px}
+#inventory .book-mark{font-size:27px;color:#3f634c}
+#inventory .book-heading h2{font-size:17px;margin:0;color:#303b32}
+#inventory .book-search-label{font-size:10px;font-weight:bold;text-transform:uppercase;color:#59635b}
+#inventory #recipe-search{box-sizing:border-box;width:100%;margin:5px 0 9px;padding:8px;background:#e8eae2;border:2px solid #68736b;border-right-color:#fff;border-bottom-color:#fff;border-radius:0;color:#263029;font:12px Consolas,'Courier New',monospace}
+#inventory .book-categories{display:flex;gap:3px;margin-bottom:9px}
+#inventory .book-categories button{flex:1;min-width:0;padding:5px 0;border:2px solid #e8eee7;border-right-color:#657566;border-bottom-color:#657566;background:#879a84;color:#1e3b28;font-size:19px;cursor:pointer}
+#inventory .book-categories button.selected{background:#cfe0b3;box-shadow:inset 0 0 0 2px #638652}
+#inventory .book-categories button:hover{background:#b7d3a4}
+#inventory .recipe-results{min-height:80px;overflow:auto;flex:1;display:grid;align-content:start;gap:5px;padding:6px;background:#7e8580;border:2px solid #626b64;border-right-color:#e5e8e0;border-bottom-color:#e5e8e0}
+#inventory .book-recipe{display:flex;align-items:center;gap:6px;width:100%;min-height:46px;padding:3px 5px;text-align:left;border:2px solid #495f4e;background:#b8c9a7;color:#253029;cursor:pointer;font:11px Consolas,'Courier New',monospace}
+#inventory .book-recipe.unavailable{background:#a6a9a4;border-color:#7e7775;filter:saturate(.55);opacity:.75}
+#inventory .book-recipe:hover{outline:2px solid #f5de8f;outline-offset:-3px}
+#inventory .book-recipe .item-icon{width:34px;height:34px;image-rendering:pixelated;flex:none}
+#inventory .book-recipe span{min-width:0;flex:1}.book-recipe strong,.book-recipe small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#inventory .book-recipe small{font-size:9px;margin-top:2px}.book-recipe em{font-size:9px;font-style:normal}
+#inventory .book-empty{color:#f2f2ec;font-size:11px}
+#inventory #book-message{min-height:22px;margin:7px 0 0;color:#425c46;font-size:11px}
+#inventory #held-stack{position:fixed;z-index:40;display:flex;align-items:flex-end;pointer-events:none;text-shadow:1px 1px #111}
+#inventory #held-stack .item-icon{width:34px;height:34px;image-rendering:pixelated}
+#inventory #held-stack em{font:bold 12px Consolas,'Courier New',monospace;color:#fff;font-style:normal;margin-left:-8px}
+#inventory #item-tooltip{position:fixed;z-index:50;width:218px;box-sizing:border-box;pointer-events:none;padding:8px 10px;background:#202922f2;border:2px solid #c2d5b7;color:#f4f3e7;box-shadow:3px 4px 0 #0008;font:11px Consolas,'Courier New',monospace}
+#inventory #item-tooltip[hidden]{display:none}
+#inventory #item-tooltip strong,#inventory #item-tooltip span,#inventory #item-tooltip small{display:block;margin-bottom:4px}
+#inventory #item-tooltip small{color:#c6d9b7}
+#inventory :is(button,input,select):focus-visible{outline:3px solid #f8df78;outline-offset:2px}
+@media(max-width:1020px){#inventory .crafting-shell{width:min(96vw,660px);overflow:auto;display:block}
+  #inventory .inventory-panel{width:100%;max-height:none}#inventory #recipe-book{width:100%;max-height:220px;margin-bottom:8px;flex:none}
+  #inventory .recipe-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){#inventory .inventory-panel{padding:10px;width:100%}#inventory .inventory-top{grid-template-columns:1fr;gap:10px}
+  #inventory .equipment-area{border-right:0;border-bottom:2px solid #a4aaa5;padding-bottom:10px}
+  #inventory .inv-main-grid,#inventory .inv-hotbar-grid,#inventory .chest-grid{grid-template-columns:repeat(9,minmax(0,1fr))}
+  #inventory .inv-slot{width:100%;min-width:0;height:auto;min-height:0;aspect-ratio:1}
+  #inventory .inv-slot .item-icon{width:min(30px,90%);height:min(30px,90%)}
+  #inventory .inventory-footer span{display:none}}

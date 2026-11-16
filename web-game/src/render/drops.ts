@@ -12,7 +12,7 @@ export function visualBlockForItem(id:string):Block{
   const def=item(id),block=itemBlock(id);
   return block===Block.Air?def.category==='food'?Block.BerryCrop:def.category==='weapon'?Block.Iron:Block.Wood:block;
 }
-function lootPixels(id:string):Uint8Array{
+function lootPixels(id:string,transparentBackground=false):Uint8Array{
   const pixels=new Uint8Array(TILE*TILE*4),def=item(id);
   const metal=id.includes('gold')?[222,174,57]:id.includes('copper')?[195,117,70]:id.includes('iron')?[180,196,200]:
     id.includes('stone')?[126,135,139]:[151,113,75];
@@ -25,7 +25,7 @@ function lootPixels(id:string):Uint8Array{
     const index=(y*TILE+x)*4,shade=((x*13+y*7+id.length*17)%7)/30;
     const base=mark?food?[164,66,91]:metal:[40,56,64];
     for(let channel=0;channel<3;channel++)pixels[index+channel]=Math.min(255,Math.round(base[channel]!*(.87+shade)));
-    pixels[index+3]=255;
+    pixels[index+3]=mark||!transparentBackground?255:0;
   }
   return pixels;
 }
@@ -42,7 +42,7 @@ export function itemIconUrl(id:string):string{
   const block=itemBlock(id),atlas=iconAtlas??=atlasPixels();
   const canvas=document.createElement('canvas');canvas.width=canvas.height=TILE;
   const context=canvas.getContext('2d');if(!context)return '';
-  const pixels=context.createImageData(TILE,TILE);pixels.data.set(block===Block.Air?lootPixels(id):blockPixels(block,atlas));
+  const pixels=context.createImageData(TILE,TILE);pixels.data.set(block===Block.Air?lootPixels(id,true):blockPixels(block,atlas));
   context.putImageData(pixels,0,0);const url=canvas.toDataURL('image/png');iconCache.set(id,url);return url;
 }
 export class DropVisuals{

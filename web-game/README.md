@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Crafting overhaul, Part 2
+
+The inventory and crafting station now use original gray pixel-style panels with square slots, an output arrow, separate recipe output, three inventory rows, and a nine-slot hotbar. Item art comes from the existing block atlas and item registry; tools show their durability in a small bar and in a hover tooltip. No Minecraft interface assets are included.
+
+Open the personal inventory with **E**, or right-click a crafting station for the 3×3 grid. Select **Recipes** to open the recipe book. Search by output name, choose a category, and click a green **Ready** recipe to place its ingredients in the grid. Gray **Missing** recipes show their requirements but do not move items. Click the output to craft; selecting a recipe alone does not create an item. The book updates when inventory contents change. The controls and save behavior described below still apply. Run `npm run test:recipe-book` with the Vite development server for its browser test.
+
 ## Crafting overhaul, Part 1
 
 Press **E** for the personal 2×2 crafting grid or interact with a crafting station for its 3×3 grid. A valid recipe appears in the output slot; click it to take the result onto the cursor, or Shift-click it or use **Craft to inventory** to place one result directly in the bag. Ingredients are consumed only when a result is taken. Repeated clicks craft again while ingredients and output capacity remain.

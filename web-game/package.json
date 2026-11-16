@@ -18,6 +18,7 @@
     "test:visual-improvement": "node tests/visual-improvement.mjs",
     "test:swimming": "node tests/swimming.mjs",
     "test:crafting-overhaul": "node tests/crafting-overhaul.mjs",
+    "test:recipe-book": "node tests/recipe-book.mjs",
     "test:final": "node tests/final.mjs",
     "test:performance": "node tests/performance.mjs",
     "build": "tsc --noEmit && vite build"

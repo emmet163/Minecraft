@@ -1,5 +1,27 @@
 # Stonewake web test report
 
+## Crafting overhaul, Part 2 (2026-11-16)
+
+**Baseline:** Checkpoint `617e6ee`; only unrelated `preview-site/` was untracked. Reviewed Part 1 inventory input, recipe matching and transactions, icon generation, CSS, prior report, and browser fixture. Before edits, typecheck, 56 Vitest tests in eleven files, production build, and Part 1 Playwright crafting interaction test passed.
+
+**Implemented:** Original gray pixel-style crafting panels with square recessed slots, 2×2 and 3×3 grids, aligned output arrow/slot, equipment area, three inventory rows, and separated hotbar. The recipe book uses the existing recipe registry for search, categories, item icons, ingredient counts, ready/missing status, and safe one-craft grid population. Grid replacement first plans room for old ingredients and draws new ones from the bag; no recipe selection grants output. Item icons retain block atlas identity and use transparent procedural silhouettes for non-block items. Slots show counts and durability bars; a pointer-safe tooltip shows names, descriptions, stats, and durability. Existing Part 1 mechanics remain in use.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `typecheck`, `test`, `build`, `test:crafting-overhaul` | Passed: 56 tests in eleven files, production build, browser interactions and reload. |
+| Final `npm run typecheck` | Passed. |
+| Final `npm test` | Passed: 60 tests in twelve files. Four new tests cover categories/ingredient counts, personal/station grid population, unavailable/full-bag rejection without mutation, and item damage preservation. |
+| Final `npm run build` | Passed: main JS 737.28 kB (198.85 kB gzip), CSS 18.40 kB (4.81 kB gzip). Vite's 500 kB main-chunk advisory remains. |
+| Playwright `test:recipe-book` on Vite dev | Passed: book opening/closing, search, category filters, ready/missing state, safe 2×2 and 3×3 population, output consumption, tooltip and icon loading, 1024px bounds, and IndexedDB reload; no page or console errors. |
+| Playwright `test:crafting-overhaul` on Vite dev | Passed after redesign: 2×2/3×3 output, repeated crafting, split, Shift-transfer, left/right drag, full-bag held item, and IndexedDB reload; no browser errors. |
+| Playwright `test:integration` and `test:stations` on Vite dev | Passed: gameplay, inventory crafting and equipment, chest/furnace/station/bed, and persistence; no browser errors. |
+| Playwright `test:browser` on final built preview | Passed: WebGL, movement, mining, placement, two saved edits after reload, pause; no page or console errors. |
+| Visual review | Captured and inspected 1280×720 personal inventory, station, open recipe-book, and tooltip screenshots, plus the 1024×768 open-book layout. |
+
+**Bugs found and fixed:** The first recipe-book browser run timed out because the test had left the Building filter selected before searching for a pickaxe; selecting Equipment fixed the fixture and the rerun passed. Screenshot review found HUD text over the book at 1024px and a panel stretched to the book height; overlay stacking and panel alignment were corrected, recaptured, and inspected. Furnace refresh now updates tooltip data when its item slots change.
+
+**Performance and limits:** The final built-preview headless Edge/SwiftShader gameplay sample measured 302.6 ms mean/858.2 ms maximum requestAnimationFrame interval and 29.1 MB reported JS heap with seven chunks at its early sample point. This short software-rendered run is not a recipe-book latency benchmark or native GPU frame rate. Tests did not verify physical mouse feel, other browsers, touch input, keyboard-only inventory operation, or long-session save stress. No deployment occurred. The Godot project and unrelated `preview-site/` were untouched.
+
 ## Crafting overhaul, Part 1 (2026-11-16)
 
 **Baseline:** Checkpoint `dd455b3`; only the unrelated `preview-site/` directory was untracked. Reviewed item definitions, the 36-slot bag and hotbar, crafting grids and recipes, inventory input, IndexedDB snapshots, existing reports, and relevant browser tests. Before changes, TypeScript checking, 52 Vitest tests in ten files, and the production build passed.

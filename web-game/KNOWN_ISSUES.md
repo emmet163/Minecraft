@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Crafting overhaul, Part 2
+
+- The recipe book shows recipes from the existing registry and can fill a grid only when the ingredients can be transferred without losing its current contents. A full bag can prevent a different recipe from replacing grid contents; the book marks that recipe unavailable until space is made. Selecting a recipe places one craft's ingredients, then the output must be taken to consume them.
+- The gray pixel-style panels and item art are original. Icons for blocks use the existing terrain atlas; non-block tools and supplies use procedural silhouettes. This is a functional visual interpretation of the supplied layout references, without Minecraft's proprietary interface textures, font, or character artwork.
+- Automated visual checks covered 1280×720 and 1024×768 headless Edge screenshots. Native GPU performance, physical mouse feel, other browsers, touch input, keyboard-only inventory operation, and extended save/load stress remain unverified. The main JS bundle still exceeds Vite's 500 kB advisory.
+- The earlier Part 1 section below described the recipe book as future work at that checkpoint. It is now implemented; the one-group-per-gesture drag limitation remains.
+
 ## Crafting overhaul, Part 1
 
 - The 2×2 and 3×3 grids, output slot, transfers, and drag distribution are functional. Dragging distributes within one slot group per gesture; dragging from the bag into the crafting grid in the same gesture is not supported. Move the held stack between groups with a click first.
