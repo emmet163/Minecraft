@@ -36,6 +36,12 @@ export function atlasPixels():Uint8Array{
       if(x%9===0)shade-=.14;}
     if(b===Block.Sand||b===Block.Snow||b===Block.Water||b===Block.WaterFlow||b===Block.Lava||b===Block.LavaFlow){
       shade+=Math.sin(y*.44+x*.11)*.065;if(grain<.075)shade+=.12;}
+    if(b===Block.Water||b===Block.WaterFlow){
+      const ripple=((x>>2)+(y>>2)*3+b)%7;
+      shade+=ripple===0?.17:ripple===3?-.12:0;
+      if((y&7)===2&&x%9<5)shade+=.11;
+      if((x&7)===5&&(y&7)>3)shade-=.08;
+    }
     if(b===Block.Farmland||b===Block.Mud)shade+=Math.sin(x*.33)*.055;
     if(b===Block.Glass)shade+=x<3||y<3||x>28||y>28?.22:-.04;
     if(b===Block.Lamp||b===48)shade+=((x>>3)+(y>>3))%2===0?.08:-.07;

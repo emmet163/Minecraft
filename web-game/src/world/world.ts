@@ -3,6 +3,7 @@ import { Block, type BlockState, air, floorDiv, isReplaceable, state } from './b
 import { ChunkData, HEIGHT, PAD, SIZE } from './chunk';
 import { WorldGenerator, Biome } from './generator';
 import { buildChunkMesh, disposeChunk, terrainTexture } from '../render/terrain';
+import {WaterSurface} from '../render/water';
 import { type Edit, type EditStore } from '../persistence/edits';
 
 const key=(cx: number,cz: number)=>`${cx},${cz}`;
@@ -15,7 +16,9 @@ export class VoxelWorld {
   private readonly texture=terrainTexture();
   private readonly opaque=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,side:THREE.DoubleSide});
   private readonly transparent=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,transparent:true,opacity:.64,depthWrite:false,side:THREE.DoubleSide});
-  private readonly water=new THREE.MeshPhongMaterial({map:this.texture,vertexColors:true,transparent:true,opacity:.74,depthWrite:false,shininess:75,specular:'#7299ad',side:THREE.DoubleSide});
+  private readonly waterVisual=new WaterSurface(this.texture);
+  private readonly water=this.waterVisual.material;
+  animateWater(delta:number){this.waterVisual.update(delta);}
   private readonly lava=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,emissive:'#c13c0a',emissiveIntensity:.55,side:THREE.DoubleSide});
   shadows=false;
   setShadows(enabled:boolean){this.shadows=enabled;for(const chunk of this.chunks.values())this.applyShadows(chunk.group);}
@@ -207,6 +210,6 @@ export class VoxelWorld {
   }
   dispose(): void {
     this.clear(); for(const worker of this.workers) worker.terminate(); this.workers=[]; this.busy.clear();
-    this.texture.dispose(); this.opaque.dispose(); this.transparent.dispose();this.water.dispose();this.lava.dispose();
+    this.texture.dispose(); this.opaque.dispose(); this.transparent.dispose();this.waterVisual.dispose();this.lava.dispose();
   }
 }

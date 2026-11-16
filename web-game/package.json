@@ -16,6 +16,7 @@
     "test:advanced": "node tests/advanced.mjs",
     "test:visuals": "node tests/visuals.mjs",
     "test:visual-improvement": "node tests/visual-improvement.mjs",
+    "test:swimming": "node tests/swimming.mjs",
     "test:final": "node tests/final.mjs",
     "test:performance": "node tests/performance.mjs",
     "build": "tsc --noEmit && vite build"

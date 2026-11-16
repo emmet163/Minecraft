@@ -34,6 +34,7 @@ import {FarmingSystem} from './world/farming';
 import {VehicleSystem} from './gameplay/transport';
 import {EffectSystem} from './gameplay/effects';
 import {DropVisuals} from './render/drops';
+import {WaterEffects} from './render/waterEffects';
 
 type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number;bob:number};
 const settingsKey='stonewake-web-settings';
@@ -55,6 +56,9 @@ class Game{
   readonly litLamps=new Map<string,[number,number,number]>();
   readonly clock=new THREE.Clock();readonly sounds=new BlockSounds();readonly weather=new WeatherVisual();
   readonly sky=new SkyDome();readonly firstPerson=new FirstPersonView(this.player.camera);readonly particles=new BurstParticles();
+  readonly waterEffects=new WaterEffects();private waterBlend=0;
+  private readonly airSky=new THREE.Color('#91bde3');private readonly airFog=new THREE.Color('#91bde3');
+  private readonly deepBlue=new THREE.Color('#173e68');
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
@@ -68,7 +72,7 @@ class Game{
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
-    this.scene.add(this.ambient,this.sun,this.sun.target,this.moon,this.sky.mesh,this.world.group,this.player.object,this.outline,this.weather.group,this.particles.mesh,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;
+    this.scene.add(this.ambient,this.sun,this.sun.target,this.moon,this.sky.mesh,this.world.group,this.player.object,this.outline,this.weather.group,this.particles.mesh,this.waterEffects.mesh,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;
     this.sun.shadow.camera.left=-48;this.sun.shadow.camera.right=48;this.sun.shadow.camera.top=48;this.sun.shadow.camera.bottom=-48;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=240;this.sun.shadow.bias=-.00025;
     this.advancedInfo.id='advanced-info';this.hud.root.append(this.advancedInfo);
     this.world.onEdits=edits=>{this.fluids.changed(edits);this.automation.changed(edits);this.farming.changed(edits);this.trackLamps(edits);};
@@ -114,6 +118,7 @@ class Game{
     this.hud.canvas.addEventListener('contextmenu',event=>event.preventDefault());
     this.world.onError=message=>this.hud.showNotice(message);this.store.onFailure=message=>this.hud.showNotice(message);
     this.player.onLand=distance=>{if(distance>4)this.takeDamage((distance-3)*1.5);};
+    this.player.onSplash=surface=>{const p=this.player.position;this.waterEffects.splash(p.x,surface,p.z);};
   }
   private resize(){const w=window.innerWidth,h=window.innerHeight;this.renderer.setSize(w,h,false);this.player.camera.aspect=w/h;this.player.camera.updateProjectionMatrix();}
   private persistSettings(seed=this.world.seed,distance=this.world.renderDistance,sensitivity=this.player.sensitivity){
@@ -375,7 +380,7 @@ class Game{
     if(!this.life.dead){const p=this.player.position,camera=this.player.camera,head=this.world.get(Math.round(p.x),Math.round(p.y+camera.position.y),Math.round(p.z));
       const chest=this.world.get(Math.round(p.x),Math.round(p.y+1),Math.round(p.z));const biome=this.world.generator.biomeAt(Math.round(p.x),Math.round(p.z));
       const cold=snow&&this.cycle.intensity>.4&&this.outdoors();const hot=biome===Biome.Desert&&this.cycle.daylight>.7&&this.life.hunger<=8;
-      this.life.tick(delta,this.player.keys.has('ShiftLeft'),head===Block.Water||head===Block.WaterFlow,isSolid(head)&&head!==Block.Bed||isSolid(chest)&&chest!==Block.Bed,cold,hot);
+      this.life.tick(delta,this.player.keys.has('ShiftLeft'),this.player.headSubmerged,isSolid(head)&&head!==Block.Bed||isSolid(chest)&&chest!==Block.Bed,cold,hot);
       if([Block.Lava,Block.LavaFlow].includes(head)||[Block.Lava,Block.LavaFlow].includes(chest)){
         this.lavaClock+=delta;if(this.lavaClock>=1){this.lavaClock=0;this.takeDamage(4);}
       }else this.lavaClock=0;
@@ -392,8 +397,17 @@ class Game{
     const sky=this.realm==='veil'?new THREE.Color('#322653').lerp(new THREE.Color('#75589a'),b*.6):new THREE.Color('#263e67').lerp(new THREE.Color('#91bde3'),b);
     const biome=this.world.generator.biomeAt(Math.round(this.player.position.x),Math.round(this.player.position.z));
     const horizon=sky.clone().lerp(new THREE.Color(biome===Biome.Desert?'#e6bd92':biome===Biome.Swamp?'#8baf9c':biome===Biome.Snow?'#d2e1ed':'#b6c7bf'),b*.65);
-    (this.scene.background as THREE.Color).copy(sky);(this.scene.fog as THREE.Fog).color.copy(horizon);
+    this.airSky.copy(sky);this.airFog.copy(horizon);
     this.sky.update(this.player.position,sky,horizon,sky.clone().multiplyScalar(.55),new THREE.Vector3(sunX,sunY,35),b);
+  }
+  private updateWaterView(delta:number){this.waterBlend+=(Number(this.player.headSubmerged)-this.waterBlend)*(1-Math.exp(-5*delta));
+    if(this.waterBlend<.001)this.waterBlend=0;
+    const fog=this.scene.fog as THREE.Fog;
+    fog.near=THREE.MathUtils.lerp(75,1.5,this.waterBlend);fog.far=THREE.MathUtils.lerp(145,18,this.waterBlend);
+    fog.color.copy(this.airFog).lerp(this.deepBlue,this.waterBlend);
+    (this.scene.background as THREE.Color).copy(this.airSky).lerp(this.deepBlue,this.waterBlend);
+    this.waterEffects.update(delta,this.player.position,this.player.headSubmerged);
+    this.world.animateWater(delta);
   }
   private frame=()=>{if(!this.running)return;requestAnimationFrame(this.frame);const delta=Math.min(this.clock.getDelta(),.12);
     if(!this.paused){
@@ -420,7 +434,7 @@ class Game{
       this.effects.tick(delta);this.player.speedMultiplier=this.effects.swift>0?1.45:1;
       for(const furnace of this.items.furnaces.values())furnace.tick(delta);
       this.updateSurvival(delta);
-      this.sky.mesh.position.copy(this.player.position);this.particles.update(delta);
+      this.sky.mesh.position.copy(this.player.position);this.particles.update(delta);this.updateWaterView(delta);
       this.villageClock+=delta;if(this.villageClock>=1.5){this.villageClock=0;
         for(const site of this.world.generator.structures.nearby(this.player.position.x,this.player.position.z,42)){
           this.creatures.ensureVillage(site,this.villages.deceased);

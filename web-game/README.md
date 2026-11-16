@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Swimming and water (physics improvement, Part 2)
+
+The player wades in shallow water, floats near a deep-water surface, and swims with WASD. Hold **Space** to rise or **Shift/Ctrl** to dive; looking up or down while moving also nudges vertical travel. Water applies buoyancy and drag while retaining gravity, collision, oxygen loss when the head is submerged, and drowning damage. Leaving water restores normal land movement. Creative flight still takes priority over swimming.
+
+Water uses an original pixel-art atlas tile, a subtly animated translucent material, blue underwater fog, entry splashes, and underwater bubbles. Water edits and the player's saved position and oxygen use the existing IndexedDB save system. Run `npm run test:swimming` with the Vite development server to exercise the browser swimming fixture.
+
 ## Visual improvement, Part 1
 
 All six original creature species now have distinctive voxel details, original 16-pixel procedural skins, readable faces, and smoother blended walking, fleeing, idle, attack, hurt, and death motion. Their visual bounds and hitboxes were aligned, while their existing AI, health, loot, and combat rules remain in place. Creature parts use one shared-atlas material per cube. Authorized custom GLB/glTF models can be loaded through `CreatureSystem.loadGltfModel(id, url)` or supplied with `registerModel(id, factory)`; the factory must return a fresh object for each creature. The built-in model remains the default. Imported animation clips are not mapped to creature states yet.

@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Physics improvement, Part 2
+
+- Swimming and buoyancy now work for the player in loaded water. The model uses approximate body overlap and locally sampled water height; it does not simulate currents, wave forces, or water pressure. Creative flight overrides swimming. Creatures and vehicles retain their prior water behavior.
+- The pixel-art water is original and translucent with subtle shader motion. It has no reflection or refraction, and underwater fog is a camera effect. Browser screenshots were inspected in headless Edge; actual monitor appearance and motion smoothness remain unverified.
+- Fixed-step swimming and a 48-instance particle pool bound update work. Extended water flooding, long-session memory stability, native GPU performance, other browser engines, and mobile/touch controls were not measured. The main production JS remains above Vite's 500 kB advisory.
+- Earlier historical sections below describe the state at their respective phases. Their statements that player swimming was absent no longer apply after this update.
+
 ## Visual improvement, Part 1
 
 - The built-in mobs use original procedural voxel skins and simple state-driven motion. External GLB/glTF loading is available for authorized user assets but was not tested with a supplied file; imported clips are not yet mapped to AI animation states. A custom model factory must return a fresh object per creature. No Minecraft proprietary assets are included.

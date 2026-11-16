@@ -1,5 +1,30 @@
 # Stonewake web test report
 
+## Physics improvement, Part 2: swimming and water (2026-11-16)
+
+**Baseline:** Checkpoint `56d896b`; only the unrelated `preview-site/` directory was untracked. Reviewed player physics, collision, world fluids and rendering, survival oxygen, and the previous reports. Before edits, TypeScript checking, 46 Vitest tests in nine files, and the production build passed.
+
+**Implemented:** Body-overlap water detection, head submersion, fixed 120 Hz swim steps, buoyancy with gravity, drag, capped vertical speed, WASD movement, Space ascent, Shift/Ctrl dive, shallow-water jump, and land/wade/float/swim/dive/exit states. Water entry clears fall damage and triggers a pooled splash. The existing oxygen and drowning system now receives head-submersion status. Original pixel-art water atlas variation, tile-local shader animation, translucent water, blue underwater fog, smooth visibility transition, and capped pooled bubbles were integrated. Existing fluid edits and player state still use IndexedDB.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `typecheck`, `test`, `build` | Passed before changes: 46 tests, nine files; production build. |
+| Final `npm run typecheck` | Passed. |
+| Final `npm test` | Passed: 52 tests in ten files, including six swimming tests for shallow/deep water, float stability, controls and exit, collision and chunk borders, oxygen/drowning, and 30/60/120 FPS physics consistency. |
+| Final `npm run build` | Passed. Main JS 727.20 kB (195.88 kB gzip); Vite's 500 kB advisory remains. |
+| Playwright `test:swimming` on Vite dev | Passed: ascent, dive, submersion, oxygen, fog, bubbles, water edit and player/oxygen state after IndexedDB reload; no page or console errors. Underwater and surface screenshots captured and inspected at 1280x720. |
+| Playwright `test:integration` on Vite dev | Passed: movement, jump, mining, crafting, equipment, survival, respawn, flight, IndexedDB reload; no browser errors. |
+| Playwright `test:advanced` on Vite dev | Passed: fluid reaction, automation, farming, cart, status effect, save/reload, Veil transition; no browser errors. |
+| Playwright `test:browser` on Vite dev | Passed: WebGL scene, 23 chunks, pointer lock, movement, mining, placement, saved edits, pause; no browser errors. |
+| Playwright `test:browser` on final built preview | Passed: WebGL scene, 11 chunks at the sample point, pointer lock, movement, mining, placement, two saved edits after reload, pause; no page or console errors. |
+| Diff review | All changed source, test, and documentation files reviewed; `git diff --check` found no whitespace errors. |
+
+**Bugs found and fixed:** The initial shallow-water test threshold was marginal at a water boundary; the assertion was corrected to match actual body overlap. A gradual water entry did not trigger a splash with the original threshold; the threshold was lowered and the failed test rerun. The first screenshot fixture left the pause menu open; it now captures the mouse and resumes before taking screenshots. The restricted sandbox blocked Vite/Vitest config reads in one attempt; rerunning outside that restriction passed.
+
+**Performance:** The isolated built-preview headless Edge/SwiftShader gameplay run measured 111.3 ms mean and 130.1 ms maximum requestAnimationFrame interval with 11 chunks at the sample point and 29.7 MB reported JS heap. A concurrent dev regression measured 110.9 ms mean/128.4 ms maximum with 23 chunks and 36.4 MB heap; a different advanced scene measured 25.7 ms mean/66.8 ms maximum and 40.5 MB heap. These short software-rendered runs are not an isolated swim benchmark or native GPU frame rate. The water effect pool is capped at 48 instances. No 60 FPS or long-session memory claim is made.
+
+**Unverified:** Physical keyboard and mouse feel, other browsers, mobile/touch, native GPU performance, extended-session memory stability, and every possible water/solid shape combination. Screenshots confirm rendering in the fixture but cannot establish perceived animation smoothness. No deployment occurred; the Godot project and unrelated `preview-site/` were untouched.
+
 ## Visual improvement, Part 1 (2026-11-16)
 
 **Starting point:** Git checkpoint `1056512`; only unrelated `preview-site/` was untracked. Before edits, strict TypeScript checks, 42 Vitest tests in eight files, and the Vite production build passed. Creature definitions, models, animation and AI, block registry, loot mapping, drop rendering, inventory, persistence, and prior reports were inspected. No original Minecraft assets were found or imported.
