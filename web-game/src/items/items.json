@@ -91,5 +91,13 @@
  {"id":"sunsteel_pickaxe","name":"Sunsteel Pickaxe","stack":1,"category":"pickaxe","block":null,"durability":620,"tier":6,"speed":8,"fuelSeconds":0,"description":"Upgraded tool forged with a sunstone."},
  {"id":"swift_tonic","name":"Swift Tonic","stack":8,"category":"potion","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Faster movement for one minute."},
  {"id":"guard_tonic","name":"Guard Tonic","stack":8,"category":"potion","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Reduces damage for one minute."},
- {"id":"mend_tonic","name":"Mending Tonic","stack":8,"category":"potion","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Restores health immediately."}
+ {"id":"mend_tonic","name":"Mending Tonic","stack":8,"category":"potion","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Restores health immediately."},
+ {"id":"raw_beef","name":"Raw Beef","stack":32,"category":"food","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Fresh cattle meat.","nutrition":3,"saturationGain":1},
+ {"id":"raw_pork","name":"Raw Pork","stack":32,"category":"food","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Fresh pig meat.","nutrition":3,"saturationGain":1},
+ {"id":"raw_chicken","name":"Raw Chicken","stack":32,"category":"food","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Fresh poultry.","nutrition":2,"saturationGain":1},
+ {"id":"wool","name":"Wool","stack":64,"category":"material","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Soft sheep fleece."},
+ {"id":"feather","name":"Feather","stack":64,"category":"material","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"A light chicken feather."},
+ {"id":"bone","name":"Bone","stack":64,"category":"material","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"A remnant of a skeleton."},
+ {"id":"spider_silk","name":"Spider Silk","stack":64,"category":"material","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"Strong thread from a cave spider."},
+ {"id":"fuse_spore","name":"Fuse Spore","stack":64,"category":"material","block":null,"durability":0,"tier":0,"speed":1,"fuelSeconds":0,"description":"An unstable spore from a Fuse Creeper."}
 ]

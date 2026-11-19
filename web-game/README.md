@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Animal and mob overhaul, Part 2
+
+Four passive animals (cow, pig, sheep, chicken) and four combat creatures (zombie, skeleton, Fuse Creeper, cave spider) now join the six original Stonewake species. Each has a separate blocky head, body, and limbs; original nearest-neighbor procedural skin art; and species details such as horns, snouts, wool, wings, ribs, a bow, and eight spider legs. The new models use the existing creature spawning, collision, movement, targeting, health, drops, and combat systems. Animal heads graze and turn, chicken wings flap, zombie arms reach forward, skeletons fire bone-colored projectiles, spiders hunt at night or when provoked, and Fuse Creepers flash before a short-range burst. The burst damages nearby players and uses existing particles and audio; it does not edit terrain.
+
+Animals yield raw beef, pork, chicken, wool, or feathers; skeletons yield bones, spiders yield silk, and defeated Fuse Creepers yield fuse spores. Raw meat is edible through the existing food system. Shearing, spider wall climbing, and cooking these new meats are not implemented. The art is original and is intended to evoke familiar voxel silhouettes without using Minecraft assets. Run `npm run test:mob-overhaul` with the Vite development server for the Playwright model and drop check; the test writes front-facing screenshots to `.artifacts/`.
+
 ## Mining and tools (overhaul Part 1)
 
 Hold left click on a block to mine it. The progress bar and ten stages of block cracks show break progress; releasing the button or changing targets starts over. Creative mode breaks blocks instantly. In Survival, stone and coal need a wood pickaxe or better for their normal drop; copper and iron need stone or better; gold, Gleam Ore, and crystal need iron or better. Dirt, grass, and wood can be collected by hand. Grass drops dirt, and mature crops retain their seed and produce drops. Blocks can still be broken with the wrong tool, but restricted blocks yield no normal item. Existing stone and ore items remain unchanged.
@@ -93,7 +99,7 @@ Seeded 16×16×96 chunks stream around the player. The generator includes oceans
 
 ## Creatures and combat (Phase 6)
 
-Four original voxel creatures inhabit the world: peaceful Mossbacks, neutral Crag Guardians, and hostile Dusk Stalkers and Ember Spitters. Peaceful creatures wander, graze, and flee when hit. Guardians retaliate. Hostiles pursue and use melee or ranged attacks. Spawns depend on biome and daylight; creatures despawn far from the player. Combat uses the existing sword equipment slot or a selected hotbar sword. Armor reduces creature damage and wears down, while defeated creatures award experience and drop collectible items. The crosshair displays a targeted creature's health and behavior. The creature browser test uses a Vite development-only test fixture, so run it against `npm run dev`.
+Stonewake's original peaceful Mossbacks, neutral Crag Guardians, and hostile Dusk Stalkers and Ember Spitters remain alongside the new animals and mobs. Peaceful creatures wander, graze, and flee when hit. Guardians retaliate. Hostiles pursue and use melee or ranged attacks. Spawns depend on biome and daylight; creatures despawn far from the player. Combat uses the existing sword equipment slot or a selected hotbar sword. Armor reduces creature damage and wears down, while defeated creatures award experience and drop collectible items. The crosshair displays a targeted creature's health and behavior. The creature browser test uses a Vite development-only test fixture, so run it against `npm run dev`.
 
 ## Villages and exploration (Phase 7)
 

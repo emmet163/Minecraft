@@ -13,6 +13,7 @@
     "test:integration": "node tests/integration.mjs",
     "test:stations": "node tests/stations.mjs",
     "test:creatures": "node tests/creatures.mjs",
+    "test:mob-overhaul": "node tests/mob-overhaul.mjs",
     "test:exploration": "node tests/exploration.mjs",
     "test:advanced": "node tests/advanced.mjs",
     "test:visuals": "node tests/visuals.mjs",

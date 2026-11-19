@@ -95,11 +95,13 @@ class Game{
     this.creatures.onDeath=creature=>{if(creature.inhabitant){this.villages.deceased.add(creature.inhabitant.key);this.hud.showNotice(`${creature.def.name} has fallen`);void this.saveNow();return;}
       if(creature.dungeonKey)this.exploration.defeated.add(creature.dungeonKey);
       const def=creature.def;this.spawnItem(stack(def.drop,def.dropCount),creature.position.clone().add(new THREE.Vector3(0,.5,0)));
+      for(const extra of def.extraDrops||[])this.spawnItem(stack(extra.id,extra.count),creature.position.clone().add(new THREE.Vector3(0,.5,0)));
       const rewarded=this.life.mode==='survival';if(rewarded)this.life.experience+=def.experience;
       this.hud.showNotice(`${def.name} defeated${rewarded?` · +${def.experience} XP`:''}`);void this.saveNow();};
     this.creatures.onPlayerHit=(damage,from)=>{if(this.life.mode!=='survival'||this.life.dead)return;
       const actual=absorbCreatureDamage(this.items,damage),dx=this.player.position.x-from.x,dz=this.player.position.z-from.z,length=Math.hypot(dx,dz)||1;
       this.player.knockback.set(dx/length*4,0,dz/length*4);this.takeDamage(actual);this.hud.renderHotbar(this.life);};
+    this.creatures.onExplosion=position=>{this.particles.burst(position,24);this.sounds.creature();this.hud.showNotice('A Fuse Creeper burst nearby');};
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.resize();window.addEventListener('resize',()=>this.resize());
     this.hud.onResume=()=>{this.sounds.unlock();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};

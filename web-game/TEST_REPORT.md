@@ -1,5 +1,26 @@
 # Stonewake web test report
 
+## Animal and mob overhaul, Part 2 (2026-11-18)
+
+**Baseline:** HEAD `e592af5`; only unrelated root `preview-site/` was untracked. Inspected six existing creature definitions, procedural skin and detail meshes, animation and AI states, biome-based spawning, collision, combat, drops, GLB loading, and existing reports. Baseline typecheck, 73 Vitest tests in 14 files, and production build passed.
+
+**Implemented:** Added cow, pig, sheep, chicken, zombie, skeleton, Fuse Creeper, and cave spider to the existing creature registry while preserving the six original species. Original procedural 16-pixel nearest-neighbor skins, separate animated heads and limbs, species facial and body details, head-attached snouts/ears/beaks/fangs, and bent eight-legged spider silhouette were inspected in front-facing headless Edge screenshots. Existing biome spawning, physics, hitboxes, AI and combat are reused. Chickens flap, humanoid arms animate, skeletons fire pale projectiles, spiders are calm by day unless provoked, and Fuse Creepers warn for 1.5 seconds before bursting for player damage and particles. Added themed drops and raw-food definitions. Static small details are batched into one or two shared-color meshes per species; skin resources remain alive until the last creature system is disposed.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `npm run typecheck`, `npm test`, `npm run build` | Passed: 73 tests in 14 files, production build. |
+| Initial JSON/Vitest/build run | Failed because new decimal values lacked a leading zero; corrected and validated the JSON with Node. Existing six-species count assertion was updated to 14. |
+| Final `npm run typecheck`, `npm test`, `npm run build` | Passed: 78 tests in 15 files; production main JS 761.00 kB (204.10 kB gzip), Vite 500 kB advisory remains. |
+| `npm run test:mob-overhaul` | Passed: eight models and all new creature drops; animal and hostile screenshots captured and visually inspected, no page/console errors. The first screenshot run exposed the pause overlay; the fixture now enters the world before capture. |
+| `npm run test:creatures` | Passed: night spawns, targeting, weapon and armor wear, retaliation, XP/drops, ranged damage, 24-creature cap and cleanup; no browser errors. |
+| `npm run test:visual-improvement` | Passed: existing Mossback and Dusk Stalker visuals, block-drop atlas faces, and hotbar icon; no browser errors. |
+| `npm run test:integration` | Passed: spawn, movement, jump, mine, craft, equip, damage, food, death, respawn, Creative flight, IndexedDB reload; no browser errors. |
+| `npm run test:browser` | Passed: WebGL, 11 chunks, movement, mining, placement, saved edits after reload, pause; no browser errors. |
+
+**Measured performance:** In headless Edge/SwiftShader at 1280×720, the first creature stress run measured 286.7 ms mean rAF with one creature and 398.8 ms with 24. After static-detail batching it measured 288.9 ms with one and 382.9 ms with 24, with 24.5 MB reported JS heap; these short samples are noisy and do not establish a speedup. The general browser run measured 271.5 ms mean rAF, 817.5 ms maximum, and 31.8 MB JS heap. Native GPU frame rate, long-session memory stability, other browsers, and physical movement feel were not measured. No 60 FPS claim is made.
+
+**Limits:** Models and skins are original approximations of recognizable voxel creature types, not copies of Minecraft assets. The Fuse Creeper burst damages the player and shows particles/audio but does not destroy terrain. Spider wall climbing and sheep shearing are absent. Existing creature positions and health are transient across reload; this overhaul did not add creature persistence. Imported GLB animation mapping remains unchanged.
+
 ## Mining and tool system overhaul, Part 1 (2026-11-18)
 
 **Baseline:** HEAD `0fd1626`; only unrelated root `preview-site/` was untracked. Reviewed block and item registries, mining actions, hotbar and tool equipment, durability, drop rendering, save/load, README, and known issues. Before changes, `npm run typecheck`, 67 Vitest tests in 13 files, and `npm run build` passed.

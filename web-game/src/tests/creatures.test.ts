@@ -16,7 +16,7 @@ const player=new THREE.Vector3(0,60.51,0);
 function advance(system:CreatureSystem,seconds:number,daylight:number,vulnerable=true){for(let t=0;t<seconds;t+=.05)system.update(.05,player,daylight,vulnerable);}
 
 it('registers distinct original creatures and limits seeded spawning by day and population',()=>{
-  expect(new Set(creatureDefs.map(def=>def.id)).size).toBe(6);
+  expect(new Set(creatureDefs.map(def=>def.id)).size).toBe(14);
   expect(new Set(creatureDefs.map(def=>def.kind))).toEqual(new Set(['peaceful','neutral','hostile','friendly']));
   const day=new CreatureSystem(flatWorld());day.configure(71);advance(day,3.6,1);
   expect(day.creatures.length).toBeGreaterThan(0);expect(day.creatures.every(c=>c.def.kind!=='hostile')).toBe(true);

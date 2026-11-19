@@ -5,37 +5,42 @@ import {biomeNames,type Biome} from '../world/generator';
 import {traceBlocks} from '../world/raycast';
 import type {StructureSite,SitePoint} from '../world/structures';
 import type {Difficulty} from '../survival/state';
-import {creatureBoxGeometry,creatureDetails,creatureMaterials,disposeCreatureSkins} from './visuals';
+import {creatureBoxGeometry,creatureDetailMesh,creatureMaterials,disposeCreatureSkins,retainCreatureSkins} from './visuals';
 
 export type CreatureKind='peaceful'|'neutral'|'hostile'|'friendly';
 export type CreatureState='idle'|'wander'|'graze'|'chase'|'attack'|'flee';
 export type Occupation='farmer'|'mason'|'cartographer';
 export interface Inhabitant{key:string;occupation:Occupation;home:SitePoint;work:SitePoint;market:SitePoint}
-interface PartDef{size:[number,number,number];offset:[number,number,number];color:string;role?:'head'|'leg'}
+interface PartDef{size:[number,number,number];offset:[number,number,number];color:string;rotation?:[number,number,number];role?:'head'|'leg'|'arm'|'wing'}
 export interface CreatureDef{id:string;name:string;kind:CreatureKind;attackMode:'none'|'melee'|'ranged';biomes:string[];
   realm?:'veil';
   health:number;speed:number;damage:number;range:number;cooldown:number;experience:number;drop:string;dropCount:number;
+  extraDrops?:{id:string;count:number}[];
   radius:number;height:number;parts:PartDef[]}
 export const creatureDefs:CreatureDef[]=raw as CreatureDef[];
 export interface CreatureWorld{get(x:number,y:number,z:number):Block;getState(x:number,y:number,z:number):BlockState;
   isLoaded(x:number,z:number):boolean;generator:{surfaceHeight(x:number,z:number):number;biomeAt(x:number,z:number):Biome;realm?:'overworld'|'veil'}}
 export interface CreatureView{position:THREE.Vector3;health:number;maxHealth:number;name:string;state:CreatureState;kind:CreatureKind}
 export class Creature{
-  readonly group=new THREE.Group();readonly legs:THREE.Mesh[]=[];readonly heads:THREE.Mesh[]=[];readonly meshes:THREE.Mesh[]=[];
+  readonly group=new THREE.Group();readonly legs:THREE.Mesh[]=[];readonly heads:THREE.Mesh[]=[];
+  readonly arms:THREE.Mesh[]=[];readonly wings:THREE.Mesh[]=[];readonly headDetails:THREE.Mesh[]=[];readonly meshes:THREE.Mesh[]=[];
   health:number;state:CreatureState='idle';velocityY=0;grounded=false;knockX=0;knockZ=0;
   aggression=0;flee=0;attackClock=0;thinkClock=0;decisionClock=0;deadClock=0;hurtClock=0;age=0;phase=0;heading=0;
-  avoidClock=0;avoidHeading=0;
+  avoidClock=0;avoidHeading=0;fuseClock=0;
   inhabitant?:Inhabitant;tunic?:string;dungeonKey?:string;
   breedCooldown=0;
   constructor(readonly id:number,readonly def:CreatureDef,geometry:THREE.BoxGeometry){
     this.health=def.health;
     for(let index=0;index<def.parts.length;index++){const part=def.parts[index]!;
       const mesh=new THREE.Mesh(geometry,creatureMaterials(def.id,index,part.color,part.role==='head'));mesh.scale.set(...part.size);mesh.position.set(...part.offset);
-      mesh.castShadow=true;this.group.add(mesh);this.meshes.push(mesh);if(part.role==='leg')this.legs.push(mesh);if(part.role==='head')this.heads.push(mesh);}
-    for(const [index,part] of creatureDetails(def.id).entries()){
-      const mesh=new THREE.Mesh(geometry,creatureMaterials(def.id,100+index,part.color,false));
-      mesh.scale.set(...part.size);mesh.position.set(...part.offset);mesh.castShadow=true;this.group.add(mesh);
-    }
+      if(part.rotation)mesh.rotation.set(...part.rotation);
+      mesh.castShadow=true;this.group.add(mesh);this.meshes.push(mesh);
+      if(part.role==='leg')this.legs.push(mesh);if(part.role==='head')this.heads.push(mesh);
+      if(part.role==='arm')this.arms.push(mesh);if(part.role==='wing')this.wings.push(mesh);}
+    const details=creatureDetailMesh(def.id);if(details)this.group.add(details);
+    const headOffset=def.parts.find(part=>part.role==='head')?.offset;
+    if(headOffset){const face=creatureDetailMesh(def.id,'head',headOffset);
+      if(face){face.position.set(...headOffset);this.headDetails.push(face);this.group.add(face);}}
   }
   get position(){return this.group.position;}
   get alive(){return this.health>0;}
@@ -48,12 +53,16 @@ export class CreatureSystem{
   readonly maxPopulation=24;readonly activeRadius=36;readonly despawnRadius=64;
   onDeath:(creature:Creature)=>void=()=>{};
   onPlayerHit:(damage:number,from:THREE.Vector3)=>void=()=>{};
+  onExplosion:(position:THREE.Vector3)=>void=()=>{};
   private box=creatureBoxGeometry();private shotBox=new THREE.BoxGeometry(.18,.18,.18);
   private shotMaterial=new THREE.MeshLambertMaterial({color:'#ffad68',emissive:'#773511'});
+  private boneShotMaterial=new THREE.MeshLambertMaterial({color:'#e5e1ce',emissive:'#3f3d34'});
   private hitMaterial=new THREE.MeshLambertMaterial({color:'#ff655e',emissive:'#48100b'});
+  private fuseMaterial=new THREE.MeshLambertMaterial({color:'#eee9c8',emissive:'#6b6347'});
   private nextId=1;private randomState=1;private spawnClock=0;
+  private disposed=false;
   private modelFactories=new Map<string,()=>THREE.Object3D>();
-  constructor(readonly world:CreatureWorld){}
+  constructor(readonly world:CreatureWorld){retainCreatureSkins();}
   registerModel(id:string,factory:()=>THREE.Object3D):void{
     if(!creatureDefs.some(def=>def.id===id))throw new Error(`Unknown creature ${id}`);
     this.modelFactories.set(id,factory);
@@ -107,7 +116,7 @@ export class CreatureSystem{
   private removeAt(index:number){const creature=this.creatures[index]!;this.group.remove(creature.group);this.creatures.splice(index,1);}
   private removeShot(index:number){const shot=this.projectiles[index]!;this.group.remove(shot.mesh);this.projectiles.splice(index,1);}
   clear(){for(let i=this.creatures.length-1;i>=0;i--)this.removeAt(i);for(let i=this.projectiles.length-1;i>=0;i--)this.removeShot(i);}
-  dispose(){this.clear();this.box.dispose();this.shotBox.dispose();this.hitMaterial.dispose();this.shotMaterial.dispose();disposeCreatureSkins();}
+  dispose(){if(this.disposed)return;this.disposed=true;this.clear();this.box.dispose();this.shotBox.dispose();this.hitMaterial.dispose();this.fuseMaterial.dispose();this.shotMaterial.dispose();this.boneShotMaterial.dispose();disposeCreatureSkins();}
   private solid(x:number,y:number,z:number){return isSolid(this.world.get(cellOf(x),cellOf(y),cellOf(z)));}
   private collides(c:Creature,x:number,y:number,z:number):boolean{
     const r=c.def.radius,h=c.def.height;
@@ -151,10 +160,10 @@ export class CreatureSystem{
   }
   private fire(c:Creature,player:THREE.Vector3){const start=new THREE.Vector3(c.position.x,c.position.y+c.def.height*.7,c.position.z);
     const direction=new THREE.Vector3(player.x-start.x,player.y+1.1-start.y,player.z-start.z).normalize();
-    const mesh=new THREE.Mesh(this.shotBox,this.shotMaterial);mesh.position.copy(start);this.group.add(mesh);
+    const mesh=new THREE.Mesh(this.shotBox,c.def.id==='skeleton'?this.boneShotMaterial:this.shotMaterial);mesh.position.copy(start);this.group.add(mesh);
     this.projectiles.push({mesh,vx:direction.x*9,vy:direction.y*9,vz:direction.z*9,age:0,damage:c.def.damage});
   }
-  private think(c:Creature,player:THREE.Vector3,playerVulnerable:boolean,hour:number){const dx=player.x-c.position.x,dz=player.z-c.position.z,dist=Math.hypot(dx,dz);
+  private think(c:Creature,player:THREE.Vector3,playerVulnerable:boolean,hour:number,difficulty:Difficulty){const dx=player.x-c.position.x,dz=player.z-c.position.z,dist=Math.hypot(dx,dz);
     const vertical=Math.abs(player.y-c.position.y),inReach=dist<=c.def.range&&vertical<(c.def.attackMode==='melee'?2:8);
     if((c.def.kind==='peaceful'||c.def.kind==='friendly')&&c.flee>0){c.state='flee';c.heading=Math.atan2(-dx,-dz);return;}
     if(c.inhabitant){const waypoint=hour<6||hour>=20?c.inhabitant.home:hour<17?c.inhabitant.work:c.inhabitant.market;
@@ -162,7 +171,7 @@ export class CreatureSystem{
       c.state=Math.hypot(wx,wz)>1.3?'wander':hour>=6&&hour<17?'graze':'idle';
       if(c.state==='wander')c.heading=Math.atan2(wx,wz);return;
     }
-    const aggressive=c.def.kind==='hostile'||c.def.kind==='neutral'&&c.aggression>0;
+    const aggressive=c.def.kind==='hostile'||c.def.kind==='neutral'&&(c.aggression>0||c.def.id==='spider'&&difficulty!=='peaceful'&&(hour<6||hour>=20));
     if(aggressive&&playerVulnerable&&dist<16&&vertical<8){c.state=inReach&&this.canSee(c,player)?'attack':'chase';c.heading=Math.atan2(dx,dz);return;}
     if(c.state==='chase'||c.state==='attack'||c.state==='flee')c.state='idle';
     if(c.decisionClock<=0){const roll=this.random();c.state=roll<.3?'graze':roll<.74?'wander':'idle';
@@ -172,15 +181,30 @@ export class CreatureSystem{
     const walking=c.state==='wander'||c.state==='chase'||c.state==='flee';
     const fast=c.state==='chase'||c.state==='flee',stride=walking?(fast?.68:.38):0,blend=Math.min(1,delta*9);
     for(let i=0;i<c.legs.length;i++){const leg=c.legs[i]!,opposite=c.legs.length===4?(i===0||i===3):i%2===0;
-      leg.rotation.x+=((walking?Math.sin(c.phase+(opposite?0:Math.PI))*stride:0)-leg.rotation.x)*blend;}
-    for(const head of c.heads){const pitch=c.state==='graze'?.3+Math.sin(c.age*2)*.08:c.state==='attack'?-.24:Math.sin(c.age*1.5)*.04;
+      const swing=walking?Math.sin(c.phase+(opposite?0:Math.PI))*stride:0;
+      leg.rotation.x+=(swing-leg.rotation.x)*blend;
+      if(c.def.id==='spider')leg.rotation.y+=(Math.sin(c.phase*1.2+i*1.7)*(walking?.16:.025)-leg.rotation.y)*blend;
+    }
+    for(let i=0;i<c.arms.length;i++){const arm=c.arms[i]!;
+      const target=c.def.id==='zombie'?(c.state==='attack'?1.25:.22+Math.sin(c.phase+i*Math.PI)*.16):
+        c.def.id==='skeleton'?(c.state==='attack'?1.05:.56):walking?Math.sin(c.phase+i*Math.PI)*.28:0;
+      arm.rotation.x+=(target-arm.rotation.x)*blend;
+    }
+    for(let i=0;i<c.wings.length;i++){const wing=c.wings[i]!;
+      const target=(i?1:-1)*(walking?.22+Math.sin(c.phase*2+i*Math.PI)*.23:.06+Math.sin(c.age*2+i*Math.PI)*.035);
+      wing.rotation.z+=(target-wing.rotation.z)*blend;
+    }
+    for(const head of c.heads){const pitch=c.state==='graze'?-.38+Math.sin(c.age*2)*.08:c.state==='attack'?-.24:Math.sin(c.age*1.5)*.04;
       head.rotation.x+=(pitch-head.rotation.x)*blend;
       head.rotation.y+=(Math.sin(c.age*.65+c.id)*.1-head.rotation.y)*blend;}
+    for(const face of c.headDetails)face.rotation.copy(c.heads[0]!.rotation);
     const body=c.meshes[0];if(body&&!c.legs.includes(body)&&!c.heads.includes(body))body.position.y=c.def.parts[0]!.offset[1]+Math.sin(c.age*2.1)*.015;
     for(let i=0;i<c.meshes.length;i++){const mesh=c.meshes[i]!,part=c.def.parts[i]!;
-      mesh.material=c.hurtClock>0?this.hitMaterial:creatureMaterials(c.def.id,i,i===0&&c.tunic?c.tunic:part.color,part.role==='head');}
+      mesh.material=c.hurtClock>0?this.hitMaterial:c.def.id==='creeper'&&c.fuseClock>0&&Math.floor(c.fuseClock*10)%2===0?
+        this.fuseMaterial:creatureMaterials(c.def.id,i,i===0&&c.tunic?c.tunic:part.color,part.role==='head');}
     const desired=c.heading+Math.PI;let turn=((desired-c.group.rotation.y+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
     c.group.rotation.y+=turn*Math.min(1,delta*7);c.group.rotation.z+=( (c.state==='attack'?Math.sin(c.age*12)*.08:0)-c.group.rotation.z)*blend;
+    if(c.def.id==='creeper')c.group.scale.setScalar(1+c.fuseClock/1.5*.09*Math.sin(c.age*16));
   }
   private spawnNear(player:THREE.Vector3,daylight:number,difficulty:Difficulty){if(this.creatures.length>=this.maxPopulation)return;
     for(let attempt=0;attempt<12;attempt++){
@@ -208,9 +232,15 @@ export class CreatureSystem{
       c.breedCooldown=Math.max(0,c.breedCooldown-delta);
       c.aggression=Math.max(0,c.aggression-delta);c.flee=Math.max(0,c.flee-delta);c.attackClock=Math.max(0,c.attackClock-delta);
       c.decisionClock-=delta;c.thinkClock-=delta;
-      if(c.thinkClock<=0){c.thinkClock=distanceSq<144?.15:.45;this.think(c,player,playerVulnerable,hour);}
+      if(c.thinkClock<=0){c.thinkClock=distanceSq<144?.15:.45;this.think(c,player,playerVulnerable,hour,difficulty);}
       if(c.state==='wander'||c.state==='chase'||c.state==='flee')this.navigate(c,c.heading,delta);
-      if(c.state==='attack'&&c.attackClock<=0&&playerVulnerable&&this.canSee(c,player)){
+      if(c.def.id==='creeper'){
+        const close=c.state==='attack'&&playerVulnerable&&c.position.distanceToSquared(player)<3.2**2;
+        c.fuseClock=Math.max(0,Math.min(1.5,c.fuseClock+(close?delta:-delta*2)));
+        if(c.fuseClock>=1.5){if(c.position.distanceToSquared(player)<3.2**2)this.onPlayerHit(c.def.damage,c.position);
+          this.onExplosion(c.position.clone());c.health=0;c.deadClock=.3;continue;}
+      }
+      if(c.def.id!=='creeper'&&c.state==='attack'&&c.attackClock<=0&&playerVulnerable&&this.canSee(c,player)){
         c.attackClock=c.def.cooldown;c.hurtClock=.08;
         if(c.def.attackMode==='melee')this.onPlayerHit(c.def.damage,c.position);
         if(c.def.attackMode==='ranged')this.fire(c,player);

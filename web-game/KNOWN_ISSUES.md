@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Animal and mob overhaul, Part 2
+
+- The new eight creatures use original voxel geometry and pixel skins to evoke familiar animal and hostile silhouettes. They are approximations; no Minecraft textures, model files, sounds, or exact facial patterns were imported. Native-display visual quality and physical movement feel remain unverified; headless Edge screenshots were inspected.
+- Sheep shearing and a sheared model do not exist because the game has no shears. Spiders crawl and chase but do not climb walls. The Fuse Creeper uses a visible warning and damages the player, with particles and sound; it does not alter terrain or hit other creatures. Bow geometry is visible on skeletons but does not bend or draw a string.
+- Raw beef, pork, and chicken can be eaten through the current food system; dedicated cooking recipes and food-poisoning effects were not added. Creatures still despawn and respawn rather than preserving individual position or health in IndexedDB.
+- Headless Edge/SwiftShader measured 382.9 ms mean rAF with 24 creatures in a short 1280×720 sample after static-detail batching; the general browser regression measured 271.5 ms. This is software rendering and cannot predict native GPU performance. Long-session GPU and JS memory stability and other browsers remain unverified; the main JS bundle exceeds Vite's 500 kB advisory.
+
 ## Mining overhaul, Part 1
 
 - The block and item registries have no diamond ore, diamond tool, obsidian, or bedrock counterpart. Their example harvest rules are therefore unavailable; iron is the highest required pickaxe tier for current ores, while copper, gold, and Sunsteel tools retain their existing tiers.
