@@ -70,7 +70,7 @@ export class InventoryView{
   }
   private slotAccepts(group:string,index:number,cursor:Stack):boolean{
     if(isEmpty(cursor))return true;
-    if(group==='equip'){const def=item(cursor.id);return index===0?['pickaxe','shovel'].includes(def.category):index===1?cursor.id.endsWith('_helmet'):
+    if(group==='equip'){const def=item(cursor.id);return index===0?['pickaxe','axe','shovel','hoe'].includes(def.category):index===1?cursor.id.endsWith('_helmet'):
       index===2?cursor.id.endsWith('_chestplate'):def.category==='weapon';}
     if(group==='storage'&&this.mode==='furnace')return index===0?smelting.has(cursor.id):index===1?item(cursor.id).fuelSeconds>0:false;
     return true;

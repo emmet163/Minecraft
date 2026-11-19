@@ -4,7 +4,7 @@ import './ui/phase7.css';
 import './ui/phase8.css';
 import './ui/phase9.css';
 import './ui/crafting.css';
-import {Block,blockNames,dropType,isReplaceable,isSolid,state} from './world/blocks';
+import {Block,blockNames,isReplaceable,isSolid,miningRule,state} from './world/blocks';
 import {VoxelWorld} from './world/world';
 import {IndexedDbEditStore,validGameSave,type GameSave,type WorldInfo} from './persistence/edits';
 import {PlayerController} from './player/controller';
@@ -19,7 +19,8 @@ import {FirstPersonView} from './render/first_person';
 import {BurstParticles} from './render/particles';
 import {parseQuality,qualityPreset,type Quality} from './render/quality';
 import {audioLevel,type AudioSettings} from './render/sounds';
-import {GameItems,blockItem,isEmpty,item,stack,empty,type Stack} from './items/items';
+import {GameItems,catalog,isEmpty,item,stack,empty,type Stack} from './items/items';
+import {MiningProgress} from './items/mining';
 import {SurvivalState,WorldCycle,type Mode,type Difficulty} from './survival/state';
 import {Biome} from './world/generator';
 import {CreatureSystem,type Creature} from './creatures/system';
@@ -40,6 +41,18 @@ import {WaterEffects} from './render/waterEffects';
 type Drop={mesh:THREE.Mesh;item:Stack;age:number;velocity:number;bob:number};
 const settingsKey='stonewake-web-settings';
 const cellKey=(x:number,y:number,z:number)=>`${x},${y},${z}`;
+function createCrackGeometry():THREE.BufferGeometry{
+  const positions:number[]=[];
+  for(let stage=0;stage<10;stage++){
+    const u=-.4+(stage%5)*.2,v=-.36+Math.floor(stage/5)*.34;
+    for(const side of [-1,1]){
+      positions.push(side*.518,u,v,side*.518,u+.17,v+.14);
+      positions.push(u,side*.518,v,u+.17,side*.518,v+.14);
+      positions.push(u,v,side*.518,u+.17,v+.14,side*.518);
+    }
+  }
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setDrawRange(0,0);return geometry;
+}
 class Game{
   readonly items=new GameItems();readonly life=new SurvivalState();readonly cycle=new WorldCycle();
   readonly hud=new Hud(this.items);readonly inventory=new InventoryView(this.hud.root,this.items,this.life);
@@ -61,10 +74,11 @@ class Game{
   private readonly airSky=new THREE.Color('#91bde3');private readonly airFog=new THREE.Color('#91bde3');
   private readonly deepBlue=new THREE.Color('#173e68');
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
+  readonly cracks=new THREE.LineSegments(createCrackGeometry(),new THREE.LineBasicMaterial({color:'#24211e',depthTest:false,transparent:true,opacity:.8}));
   readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
   readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
   readonly dropVisuals=new DropVisuals();
-  paused=true;private leftHeld=false;private miningKey='';private miningTime=0;private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
+  paused=true;private leftHeld=false;private mining=new MiningProgress();private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
   private saveQueue:Promise<void>=Promise.resolve();private lightClock=0;private hudClock=0;private idleRenderClock=1;private navigationClock=1;private villageClock=1;private lavaClock=0;private stepClock=0;
   quality:Quality='low';private visualConfigured=false;
@@ -73,7 +87,7 @@ class Game{
   constructor(){
     this.scene.background=new THREE.Color('#91bde3');this.scene.fog=new THREE.Fog('#91bde3',75,145);
     this.sun.position.set(-45,95,55);this.moon.position.set(40,80,-45);
-    this.scene.add(this.ambient,this.sun,this.sun.target,this.moon,this.sky.mesh,this.world.group,this.player.object,this.outline,this.weather.group,this.particles.mesh,this.waterEffects.mesh,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;
+    this.scene.add(this.ambient,this.sun,this.sun.target,this.moon,this.sky.mesh,this.world.group,this.player.object,this.outline,this.cracks,this.weather.group,this.particles.mesh,this.waterEffects.mesh,this.creatures.group,this.vehicles.group,...this.lampLights);this.outline.visible=false;this.cracks.visible=false;
     this.sun.shadow.camera.left=-48;this.sun.shadow.camera.right=48;this.sun.shadow.camera.top=48;this.sun.shadow.camera.bottom=-48;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=240;this.sun.shadow.bias=-.00025;
     this.advancedInfo.id='advanced-info';this.hud.root.append(this.advancedInfo);
     this.world.onEdits=edits=>{this.fluids.changed(edits);this.automation.changed(edits);this.farming.changed(edits);this.trackLamps(edits);};
@@ -114,7 +128,7 @@ class Game{
     window.addEventListener('blur',()=>{this.player.keys.clear();this.leftHeld=false;void this.saveNow();});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)void this.saveNow();});
     this.hud.canvas.addEventListener('mousedown',event=>this.mouseDown(event));
-    document.addEventListener('mouseup',event=>{if(event.button===0)this.leftHeld=false;});
+    document.addEventListener('mouseup',event=>{if(event.button===0){this.leftHeld=false;this.resetMining();}});
     this.hud.canvas.addEventListener('wheel',event=>{event.preventDefault();if(!this.paused&&!this.inventory.open&&!this.trade.open&&!this.navigation.open){this.hud.select(this.items.selected+(event.deltaY>0?1:-1));void this.saveNow();}},{passive:false});
     this.hud.canvas.addEventListener('contextmenu',event=>event.preventDefault());
     this.world.onError=message=>this.hud.showNotice(message);this.store.onFailure=message=>this.hud.showNotice(message);
@@ -141,7 +155,8 @@ class Game{
     .sort((a,b)=>(a[0]-p.x)**2+(a[1]-p.y)**2+(a[2]-p.z)**2-((b[0]-p.x)**2+(b[1]-p.y)**2+(b[2]-p.z)**2));
     for(let i=0;i<this.lampLights.length;i++){const light=this.lampLights[i]!,cell=near[i];light.intensity=cell?1.8:0;if(cell)light.position.set(...cell);}}
   private updateAdvancedInfo(){this.advancedInfo.textContent=`${this.realm==='veil'?'THE VEIL':'OVERWORLD'}${this.vehicles.mounted!==null?' · Riding (V to dismount)':''}${this.effects.swift>0?' · Swift '+Math.ceil(this.effects.swift)+'s':''}${this.effects.guard>0?' · Guard '+Math.ceil(this.effects.guard)+'s':''}`;}
-  private setPaused(value:boolean){this.paused=value;this.hud.setPaused(value&&!this.life.dead);this.leftHeld=false;this.miningTime=0;this.miningKey='';this.hud.setProgress(0);if(value){this.player.keys.clear();void this.saveNow();}}
+  private resetMining(){this.mining.reset();this.hud.setProgress(0);this.cracks.visible=false;}
+  private setPaused(value:boolean){this.paused=value;this.hud.setPaused(value&&!this.life.dead);this.leftHeld=false;this.resetMining();if(value){this.player.keys.clear();void this.saveNow();}}
   private keyDown(event:KeyboardEvent){
     if(this.life.dead){if(event.code==='KeyR')this.respawn();return;}
     if(this.trade.open){if(event.code==='KeyE'||event.code==='Escape')this.trade.close();return;}
@@ -172,7 +187,7 @@ class Game{
     this.navigation.openPanel();if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();}
   private openTrade(creature:Creature){this.leftHeld=false;this.player.keys.clear();this.trade.openPanel(creature);
     if(document.pointerLockElement===this.hud.canvas)document.exitPointerLock();}
-  private snapshot():GameSave{return {version:1,position:this.player.position.toArray() as [number,number,number],yaw:this.player.yaw,pitch:this.player.pitch,items:this.items.snapshot(),life:this.life.snapshot(),cycle:this.cycle.snapshot(),exploration:this.exploration.snapshot(),villages:this.villages.snapshot(),vehicles:this.vehicles.snapshot(),effects:this.effects.snapshot(),realm:this.realm,realmPositions:this.realmPositions,realmVehicles:{...this.realmVehicles,[this.realm]:this.vehicles.snapshot()}};}
+  private snapshot():GameSave{return {version:1,position:this.player.position.toArray() as [number,number,number],yaw:this.player.yaw,pitch:this.player.pitch,items:this.items.snapshot(),life:this.life.snapshot(),cycle:this.cycle.snapshot(),exploration:this.exploration.snapshot(),villages:this.villages.snapshot(),vehicles:this.vehicles.snapshot(),effects:this.effects.snapshot(),realm:this.realm,realmPositions:this.realmPositions,realmVehicles:{...this.realmVehicles,[this.realm]:this.vehicles.snapshot()},drops:this.drops.filter(drop=>!isEmpty(drop.item)).map(drop=>({item:{...drop.item},position:drop.mesh.position.toArray() as [number,number,number],age:drop.age}))};}
   private saveNow():Promise<void>{
     if(!this.loaded||this.saveBlocked)return this.saveQueue;
     const seed=this.worldInfo.id,save=this.snapshot();
@@ -224,7 +239,14 @@ class Game{
     this.fluids.changed(this.world.editedCells);this.automation.changed(this.world.editedCells);this.farming.changed(this.world.editedCells);this.trackLamps(this.world.editedCells);
     this.player.position.copy(spawn);this.player.yaw=valid?saved!.yaw||0:0;this.player.pitch=valid?saved!.pitch||0:0;
     this.player.object.rotation.y=this.player.yaw;this.player.camera.rotation.x=this.player.pitch;this.player.setFlight(this.life.mode==='creative');
-    this.creatures.configure(seed);this.clearDrops();this.hud.setTarget('');this.outline.visible=false;this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);this.hud.setDifficulty(this.life.difficulty);
+    this.creatures.configure(seed);this.clearDrops();
+    if(valid&&Array.isArray(saved!.drops))for(const drop of saved!.drops){
+      if(!drop||!drop.item||!catalog.has(drop.item.id)||!Number.isInteger(drop.item.count)||drop.item.count<1||drop.item.count>item(drop.item.id).stack||
+        !Array.isArray(drop.position)||drop.position.length!==3||!drop.position.every(Number.isFinite))continue;
+      this.spawnItem(stack(drop.item.id,drop.item.count,Math.max(0,drop.item.damage||0)),new THREE.Vector3(...drop.position));
+      this.drops[this.drops.length-1]!.age=Math.max(0,Math.min(300,drop.age||0));
+    }
+    this.hud.setTarget('');this.outline.visible=false;this.resetMining();this.hud.setDeath(this.life.dead);this.hud.setMode(this.life.mode);this.hud.setDifficulty(this.life.difficulty);
     this.hud.setWorld(seed,this.world.generator.biomeAt(Math.round(spawn.x),Math.round(spawn.z)),this.world.loadedCount,this.world.pendingCount);
     this.hud.setSurvival(this.life,this.cycle,this.isSnowing());this.hud.renderHotbar(this.life);this.updateLighting();this.updateLampLights();
     this.loaded=true;this.hud.setSettings(seed,distance,this.player.sensitivity);this.hud.setWorlds(await this.store.listWorlds(),info.id);this.hud.showNotice(`${info.name} ready`);
@@ -313,19 +335,24 @@ class Game{
     const furnace=type===Block.Furnace?this.items.furnaces.get(key):undefined;
     if(furnace){for(const s of furnace.slots.snapshot())if(!isEmpty(s))this.spawnItem(s,position);this.items.furnaces.delete(key);}
   }
-  private async mine(){if(!this.target||this.editBusy)return;const {x,y,z,state:hitState}=this.target;this.editBusy=true;
+  private async mine(){if(!this.target||this.editBusy)return;const {x,y,z,state:hitState}=this.target;
+    if(this.life.mode==='survival'&&miningRule(hitState.type).unbreakable)return;
+    const drops=this.life.mode==='survival'?this.items.miningDrops(hitState.type,hitState.properties):[];
+    const miningTool=this.items.activeMiningTool(),miningSlot=this.items.selected;
+    const toolId=miningTool.source==='hotbar'?this.items.slots.get(miningSlot).id:miningTool.source==='equipment'?this.items.equipment.get(0).id:'';
+    this.editBusy=true;
     if(hitState.type===Block.Chest)this.seedChestLoot(cellKey(x,y,z));
     const low=hitState.type===Block.Door&&(hitState.properties&4)?y-1:y;
     const changes=hitState.type===Block.Door?[{x,y:low,z,state:state(Block.Air)},{x,y:low+1,z,state:state(Block.Air)}]:[{x,y,z,state:state(Block.Air)}];
-    const okay=await this.world.apply(changes);
-    if(okay){if(this.life.mode==='survival'){this.items.wearTool();
-      const harvested=hitState.type===Block.WheatCrop||hitState.type===Block.BerryCrop;
-      const mature=harvested&&(hitState.properties&3)===3;
-      this.spawnItem(stack(blockItem(dropType(hitState.type)),mature?2:1),new THREE.Vector3(x,y+.4,z));
-      if(mature)this.spawnItem(stack(hitState.type===Block.WheatCrop?'sungrain':'berries',2),new THREE.Vector3(x,y+.4,z));
-      this.life.experience+=[Block.Coal,Block.Copper,Block.Iron,Block.Gold].includes(hitState.type)?2:1;}
+    const expected=changes.map(change=>change.y===y?hitState:this.world.getState(change.x,change.y,change.z));
+    const okay=await this.world.apply(changes,expected);
+    if(okay){if(this.life.mode==='survival'){
+      if(miningTool.source==='hotbar'&&this.items.slots.get(miningSlot).id===toolId)this.items.slots.damage(miningSlot,1);
+      else if(miningTool.source==='equipment'&&this.items.equipment.get(0).id===toolId)this.items.equipment.damage(0,1);
+      for(const drop of drops)this.spawnItem(drop,new THREE.Vector3(x,y+.4,z));
+      if(drops.length)this.life.experience+=[Block.Coal,Block.Copper,Block.Iron,Block.Gold].includes(hitState.type)?2:1;}
       this.releaseContainer(hitState.type,cellKey(x,low,z),new THREE.Vector3(x,y+1,z));this.sounds.play(true);this.particles.burst(new THREE.Vector3(x,y,z));this.firstPerson.triggerSwing();this.hud.showNotice(`Mined ${blockNames[hitState.type]}`);this.hud.renderHotbar(this.life);void this.saveNow();}
-    this.editBusy=false;this.miningTime=0;this.miningKey='';this.hud.setProgress(0);
+    this.editBusy=false;this.resetMining();
   }
   private attackCreature(){const c=this.creatureTarget;if(!c||this.attackClock>0)return;this.attackClock=.48;
     if(this.creatures.hit(c,meleeDamage(this.items),this.player.position)){this.sounds.creature();this.particles.burst(c.position,8);this.firstPerson.triggerSwing();wearWeapon(this.items);this.hud.renderHotbar(this.life);
@@ -418,16 +445,20 @@ class Game{
         const moving=[...'WASD'].some(key=>this.player.keys.has(`Key${key}`));
         const sprinting=this.player.keys.has('ShiftLeft')||this.player.keys.has('ShiftRight');
         const equipped=this.items.equipment.get(3),held=this.items.selectedStack();
-        const viewTool=this.items.tool==='hand'&&(!isEmpty(equipped)||!isEmpty(held)&&!!item(held.id).attack)?'weapon':this.items.tool;
+        const activeTool=this.items.activeMiningTool().category;
+        const viewTool=activeTool==='hand'&&(!isEmpty(equipped)||!isEmpty(held)&&!!item(held.id).attack)?'weapon':activeTool;
         this.firstPerson.setTool(viewTool);this.firstPerson.update(delta,moving,sprinting,this.leftHeld&&!!this.target);
         if(moving&&this.player.grounded){this.stepClock+=delta;if(this.stepClock>(sprinting?.32:.46)){this.stepClock=0;this.sounds.footstep();}}else this.stepClock=0;
         this.updateTarget();
-        const hit=this.target,k=hit?cellKey(hit.x,hit.y,hit.z):'';
-        if(this.leftHeld&&this.creatureTarget){this.attackCreature();this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
-        else if(this.leftHeld&&hit&&!this.editBusy){if(k!==this.miningKey){this.miningKey=k;this.miningTime=0;}this.miningTime+=delta;
-          const duration=this.life.mode==='creative'?0:this.items.miningTime(hit.state.type);this.hud.setProgress(duration===0?1:Math.min(1,this.miningTime/duration));
-          if(this.miningTime>=duration)void this.mine();}
-        else if(!this.editBusy){this.miningTime=0;this.miningKey='';this.hud.setProgress(0);}
+        const hit=this.target,active=this.items.activeMiningTool();
+        const k=hit?`${cellKey(hit.x,hit.y,hit.z)}:${active.source}:${active.source==='hotbar'?this.items.selectedStack().id:active.source==='equipment'?this.items.equipment.get(0).id:''}`:'';
+        if(this.leftHeld&&this.creatureTarget){this.attackCreature();this.resetMining();}
+        else if(this.leftHeld&&hit&&!this.editBusy){
+          const duration=this.life.mode==='creative'?0:this.items.miningTime(hit.state.type),progress=this.mining.advance(k,delta,duration);
+          this.hud.setProgress(progress);this.cracks.visible=progress>0&&progress<1;this.cracks.geometry.setDrawRange(0,Math.min(10,Math.ceil(progress*10))*12);
+          this.cracks.position.copy(this.outline.position);this.cracks.scale.copy(this.outline.scale);
+          if(progress>=1)void this.mine();}
+        else if(!this.editBusy)this.resetMining();
         this.updateDrops(delta);
       }
       this.world.update(this.player.position.x,this.player.position.z,delta);

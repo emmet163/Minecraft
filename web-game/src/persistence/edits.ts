@@ -13,6 +13,7 @@ export interface EditStore {
   putMany(seed: number|string, edits: Edit[]): Promise<void>;
 }
 export interface GameSave {version:1;position:[number,number,number];yaw:number;pitch:number;items:ItemsSave;life:LifeSave;cycle:CycleSave;
+  drops?:{item:{id:string;count:number;damage:number};position:[number,number,number];age:number}[];
   exploration?:ExplorationSave;villages?:VillageSave;vehicles?:VehicleSave;effects?:EffectSave;
   realm?:'overworld'|'veil';realmPositions?:Partial<Record<'overworld'|'veil',[number,number,number]>>;
   realmVehicles?:Partial<Record<'overworld'|'veil',VehicleSave>>}

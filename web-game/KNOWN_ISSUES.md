@@ -1,5 +1,11 @@
 # Known issues and verification limits
 
+## Mining overhaul, Part 1
+
+- The block and item registries have no diamond ore, diamond tool, obsidian, or bedrock counterpart. Their example harvest rules are therefore unavailable; iron is the highest required pickaxe tier for current ores, while copper, gold, and Sunsteel tools retain their existing tiers.
+- Drop persistence covers the currently loaded realm when the world is saved. Changing realms still clears transient drops from the realm being left; cross-realm drop storage was outside this overhaul.
+- Ten mining crack stages are rendered as original line marks on the targeted block. Their visual appearance was not manually inspected on a physical display. Headless Edge/SwiftShader browser performance measured 103.9 ms mean rAF in the general browser regression; native GPU performance remains unmeasured.
+
 ## Swimming physics fix (2026-11-18)
 
 - The player now sinks without upward input, rises with Space, and can use one water-exit impulse at a reachable one-block ledge. This is a local collision probe, not general pathfinding or wall climbing. Complicated shapes such as stairs, fences, or unusual overhangs may still need manual testing; a solid test overhang blocks the exit as expected.
@@ -17,7 +23,7 @@
 ## Crafting overhaul, Part 1
 
 - The 2×2 and 3×3 grids, output slot, transfers, and drag distribution are functional. Dragging distributes within one slot group per gesture; dragging from the bag into the crafting grid in the same gesture is not supported. Move the held stack between groups with a click first.
-- When the bag has no room on closing, the held stack stays in the saved cursor state and appears again when the inventory opens. The explicit **Drop held stack into world** action still creates a transient world drop, which the existing game does not save.
+- When the bag has no room on closing, the held stack stays in the saved cursor state and appears again when the inventory opens. The explicit **Drop held stack into world** action creates a world drop; current-realm drops are now saved by the mining overhaul.
 - The existing recipe guide is a simple list of available recipes. A graphical recipe book and final inventory visual redesign are reserved for Part 2. Keyboard-only item movement and touch drag controls were not verified.
 - Headless Edge/SwiftShader browser checks passed, but physical mouse feel, other browsers, long-session persistence under rapid repeated saves, and native GPU performance were not measured. The production JS remains above Vite's 500 kB advisory.
 
@@ -68,6 +74,6 @@
 - **Save boundaries:** Browser IndexedDB saves are separate from Godot `user://` save files and no conversion tool is provided. Terrain edits and player state use separate transactions, so a browser crash between them could leave the two at slightly different save points. Dropped world items are transient and do not survive reload. If IndexedDB is unavailable, changes live only in memory until the page closes; the HUD warns the player.
 - **Terrain and shapes:** Water is visual terrain without swimming or buoyancy, as in the Godot prototype. Stairs and fences have coarse selection outlines; fence collision conservatively fills its cell. Generated sand/gravel remain stable, while placed blocks fall. Weather particles can appear under roofs.
 - **Creature scope:** Creature positions and health are transient and are not saved to IndexedDB; new creatures spawn after reload. Spawning currently uses surface biome and daylight, with no underground cave spawns. AI uses short local detours around obstacles rather than a full pathfinder, so complex mazes may trap a creature. Creatures do not swim. Ranged projectiles damage the player and stop at solid voxels; they do not hit other creatures. Player ranged weapons are not implemented.
-- **Survival scope:** Furnace processing runs while the loaded page is active; it does not simulate elapsed time while the site is closed. Death drops are collectible during the active session but are not saved. Creative mode places blocks from a palette and permits flight; it does not populate unlimited inventory stacks.
+- **Survival scope:** Furnace processing runs while the loaded page is active; it does not simulate elapsed time while the site is closed. Death drops are collectible and current-realm drops are saved. Creative mode places blocks from a palette and permits flight; it does not populate unlimited inventory stacks.
 - **Browser support:** Automated interaction ran in headless Microsoft Edge at 1280×720. Other browsers, touch input, accessibility navigation, physical mouse feel, and audible sound quality were not verified. Browser tests use a Windows Edge path and need adjustment on other platforms.
 - **Deployment:** Vercel settings and static build were prepared, but no deployment was made.

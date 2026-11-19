@@ -1,5 +1,23 @@
 # Stonewake web test report
 
+## Mining and tool system overhaul, Part 1 (2026-11-18)
+
+**Baseline:** HEAD `0fd1626`; only unrelated root `preview-site/` was untracked. Reviewed block and item registries, mining actions, hotbar and tool equipment, durability, drop rendering, save/load, README, and known issues. Before changes, `npm run typecheck`, 67 Vitest tests in 13 files, and `npm run build` passed.
+
+**Changes:** Block mining rules now declare hardness, preferred tool, required category/tier, hand harvest, and loot. Wrong or insufficient tools can break stone and ores after a slow hold but do not grant their normal drop or mining experience. Wood/stone/copper/iron/gold axes and hoes were added with crafting station recipes and original procedural item icons; existing pickaxes and shovels remain. Held hotbar tools work directly, while the equipped tool slot and Q cycling remain available. Mining progress resets on release or target/tool change and displays ten crack stages. Durability is charged to the tool used. World edits verify the expected prior block state to prevent repeat mining from producing duplicate drops. Current dropped items, edited terrain, and tool damage are saved and restored through IndexedDB.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `npm run typecheck`, `npm test`, `npm run build` | Passed; 67 tests, 13 files, production build. |
+| After mining implementation `npm run typecheck`, `npm test`, `npm run build` | Passed; 73 tests, 14 files, production build. |
+| `npm run test:browser` | Passed: WebGL, 23 chunks, pointer lock, movement, hotbar, mining, placement, two saved edits after reload, pause; no browser errors. Headless Edge/SwiftShader mean rAF 103.9 ms, max 114.9 ms, JS heap 24.2 MB. |
+| `npm run test:integration` | Passed: spawn, movement, jump, mining, crafting, equipment, fall, food, death, respawn, Creative flight, IndexedDB reload; no browser errors. |
+| `npm run test:mining-overhaul` after duplicate-drop fix | Passed: hand stone yielded no item; wood pickaxe yielded one rendered stone item, lost one durability, and preserved the item, damage, and edited cell after reload. Repeated stale mine produced no duplicate; no browser errors. |
+| Final `npm run typecheck`, `npm test`, `npm run build`, and `git diff --check` | Passed; 73 tests in 14 files, production build generated, no whitespace errors. |
+| `npm run test:crafting-overhaul`, `npm run test:recipe-book` | Passed: crafting transfers, grids, recipes, tooltips, icons, layout, and IndexedDB reload; no browser errors. |
+
+**Not applicable or unverified:** Diamond ore, diamond tools, obsidian, and bedrock equivalents are absent from this game's registries, so their example rules were not tested. Native GPU performance, physical mouse feel, other browsers, long-session drop persistence, and visual appearance of the crack overlay were not verified. Headless Edge frame time above is an environment measurement, not a 60 FPS claim. The production JS still triggers Vite's bundle-size advisory.
+
 ## Swimming physics bug fix: diving, sinking, and exiting (2026-11-18)
 
 **Baseline:** Checkpoint `8df526d`; only unrelated `preview-site/` was untracked. Inspected player swim gravity, buoyancy, speed clamps, movement order, collision boxes, water sampling, mode transitions, existing swimming tests, and known issues. Before changes, typecheck, 60 Vitest tests in twelve files, and the production build passed.

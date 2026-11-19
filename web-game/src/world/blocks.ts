@@ -21,20 +21,48 @@ export const isSolid = (b: Block) => b !== Block.Air && !isFluid(b) && !isDecora
 export const isReplaceable = (b: Block) => b === Block.Air || isFluid(b) || isDecorative(b);
 export const isTransparent = (b: Block) => isFluid(b) || b === Block.Glass || b === Block.Leaves || b===Block.RealmPortal;
 export const isShaped = (b: Block) => b >= Block.Slab && b <= Block.Fence || b === Block.Bed || [Block.Wire,Block.Switch,Block.Button,Block.Plate,Block.Repeater,Block.Lamp,Block.Piston,Block.Farmland,Block.WheatCrop,Block.BerryCrop,Block.Rail,Block.RealmPortal].includes(b);
-export function hardness(b: Block): number {
-  if (b === Block.Air || isFluid(b) || isDecorative(b)) return .12;
-  if (b === Block.Leaves) return .2;
-  if (b === Block.Glass) return .35;
-  if ([Block.Dirt,Block.Grass,Block.Sand,Block.Gravel,Block.Mud,Block.Snow].includes(b)) return .65;
-  if ([Block.Wood,Block.Door,Block.Fence,Block.Stairs,Block.Bed].includes(b)) return 1.1;
-  if ([Block.Iron,Block.Gold].includes(b)) return 2.4;
-  return 1.8;
+export type Tool = 'hand' | 'pickaxe' | 'axe' | 'shovel' | 'hoe' | 'weapon';
+export interface MiningRule { hardness:number; preferred:Tool; required?:Exclude<Tool,'hand'>; minTier:number; handHarvest:boolean; loot:'self'|'dirt'|'none'; unbreakable?:boolean }
+const baseRule:MiningRule={hardness:1.8,preferred:'pickaxe',minTier:0,handHarvest:true,loot:'self'};
+const miningRules:Partial<Record<Block,Partial<MiningRule>>>={
+  [Block.Air]:{hardness:0,loot:'none'},
+  [Block.Water]:{hardness:0,loot:'none'},[Block.WaterFlow]:{hardness:0,loot:'none'},
+  [Block.Lava]:{hardness:0,loot:'none'},[Block.LavaFlow]:{hardness:0,loot:'none'},
+  [Block.Dirt]:{hardness:.65,preferred:'shovel'},[Block.Grass]:{hardness:.65,preferred:'shovel',loot:'dirt'},
+  [Block.Sand]:{hardness:.65,preferred:'shovel'},[Block.Gravel]:{hardness:.65,preferred:'shovel'},
+  [Block.Mud]:{hardness:.65,preferred:'shovel'},[Block.Snow]:{hardness:.65,preferred:'shovel'},
+  [Block.Wood]:{hardness:1.1,preferred:'axe'},[Block.Door]:{hardness:1.1,preferred:'axe'},
+  [Block.Fence]:{hardness:1.1,preferred:'axe'},[Block.Stairs]:{hardness:1.1,preferred:'axe'},
+  [Block.Bed]:{hardness:1.1,preferred:'axe'},[Block.Chest]:{preferred:'axe'},
+  [Block.CraftingStation]:{preferred:'axe'},[Block.Leaves]:{hardness:.2,preferred:'hoe'},
+  [Block.Flower]:{hardness:.12,preferred:'hand'},[Block.Plant]:{hardness:.12,preferred:'hand'},
+  [Block.Wire]:{hardness:.12,preferred:'hand'},[Block.Plate]:{hardness:.12,preferred:'hand'},
+  [Block.Rail]:{hardness:.12,preferred:'hand'},[Block.WheatCrop]:{hardness:.12,preferred:'hand'},
+  [Block.BerryCrop]:{hardness:.12,preferred:'hand'},[Block.Glass]:{hardness:.35},
+  [Block.Stone]:{required:'pickaxe',minTier:1,handHarvest:false},
+  [Block.Slab]:{required:'pickaxe',minTier:1,handHarvest:false},
+  [Block.Coal]:{required:'pickaxe',minTier:1,handHarvest:false},
+  [Block.Copper]:{required:'pickaxe',minTier:2,handHarvest:false},
+  [Block.Iron]:{required:'pickaxe',minTier:2,handHarvest:false,hardness:2.4},
+  [Block.Gold]:{required:'pickaxe',minTier:4,handHarvest:false,hardness:2.4},
+  [Block.GlowOre]:{required:'pickaxe',minTier:4,handHarvest:false},
+  [Block.Crystal]:{required:'pickaxe',minTier:4,handHarvest:false},
+  [Block.Furnace]:{required:'pickaxe',minTier:1,handHarvest:false},
+};
+export function miningRule(b:Block):MiningRule{return {...baseRule,...miningRules[b]};}
+export function hardness(b:Block):number{return miningRule(b).hardness;}
+export function canHarvest(b:Block,tool:Tool,tier:number):boolean{
+  const rule=miningRule(b);
+  if(rule.loot==='none')return false;
+  if(tool==='hand')return rule.handHarvest;
+  return !rule.required||tool===rule.required&&tier>=rule.minTier;
 }
-export type Tool = 'hand' | 'pickaxe' | 'shovel';
-export function miningSeconds(b: Block, tool: Tool): number {
-  const pick = [Block.Stone,Block.Slab,Block.Coal,Block.Copper,Block.Iron,Block.Gold,Block.Gravel].includes(b);
-  const shovel = [Block.Dirt,Block.Grass,Block.Sand,Block.Gravel,Block.Mud,Block.Snow].includes(b);
-  return Math.max(.08, hardness(b) / (tool === 'pickaxe' && pick ? 3.5 : tool === 'shovel' && shovel ? 3 : 1));
+export function miningSeconds(b:Block,tool:Tool,speed=1):number{
+  const rule=miningRule(b);
+  if(rule.unbreakable)return Infinity;
+  if(rule.hardness===0)return .12;
+  const effective=tool===rule.preferred&&tool!=='hand';
+  return Math.max(.08,rule.hardness/(effective?Math.max(1,speed)*1.75:rule.required?.28:1));
 }
 export function dropType(b: Block): Block { return b === Block.Grass ? Block.Dirt : b; }
 export const selectableBlocks: Block[] = [Block.Grass,Block.Dirt,Block.Stone,Block.Sand,Block.Wood,Block.Leaves,Block.Glass,Block.Slab,Block.Stairs,Block.Water,Block.Lava,Block.Wire,Block.Switch,Block.Button,Block.Plate,Block.Repeater,Block.Lamp,Block.Piston,Block.Farmland,Block.WheatCrop,Block.BerryCrop,Block.Rail,Block.RealmPortal];

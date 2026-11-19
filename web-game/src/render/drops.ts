@@ -16,9 +16,11 @@ function lootPixels(id:string,transparentBackground=false):Uint8Array{
   const pixels=new Uint8Array(TILE*TILE*4),def=item(id);
   const metal=id.includes('gold')?[222,174,57]:id.includes('copper')?[195,117,70]:id.includes('iron')?[180,196,200]:
     id.includes('stone')?[126,135,139]:[151,113,75];
-  const food=def.category==='food',tool=['pickaxe','shovel','weapon'].includes(def.category);
+  const food=def.category==='food',tool=['pickaxe','axe','shovel','hoe','weapon'].includes(def.category);
   for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++){
     const mark=tool?(Math.abs(x-16)<=2&&y>=11&&y<=27||def.category==='pickaxe'&&y>=8&&y<=12&&x>=6&&x<=26||
+      def.category==='axe'&&x>=6&&x<=21&&y>=7&&y<=15&&Math.abs(x-12)+Math.abs(y-11)<13||
+      def.category==='hoe'&&y>=8&&y<=12&&x>=6&&x<=22||
       def.category==='weapon'&&Math.abs(x+y-27)<=2&&x>=7&&x<=21||def.category==='shovel'&&y>=5&&y<=12&&Math.abs(x-16)<5):
       food?((x-12)**2+(y-12)**2<36||(x-21)**2+(y-15)**2<36||(x-16)**2+(y-22)**2<36):
       (x>=7&&x<=24&&y>=11&&y<=22&&Math.abs(x-16)+Math.abs(y-16)<16);

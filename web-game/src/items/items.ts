@@ -1,7 +1,7 @@
 import rawItems from './items.json';
 import rawRecipes from './recipes.json';
 import rawSmelting from './smelting.json';
-import { Block, blockNames, miningSeconds, type Tool } from '../world/blocks';
+import { Block, blockNames, canHarvest, miningRule, miningSeconds, type Tool } from '../world/blocks';
 
 export interface ItemDef { id:string;name:string;stack:number;category:string;block:string|null;durability:number;tier:number;speed:number;fuelSeconds:number;description:string;nutrition?:number;saturationGain?:number;healing?:number;attack?:number }
 export interface Stack { id:string;count:number;damage:number }
@@ -26,6 +26,15 @@ export function itemBlock(id:string):Block {
   if(!name)return Block.Air;
   const index=blockNames.findIndex(value=>value.replaceAll(' ','').toLowerCase()===name.toLowerCase());
   return index<0?Block.Air:index as Block;
+}
+export function miningDrops(block:Block,properties:number,tool:Tool,tier:number):Stack[]{
+  const rule=miningRule(block);
+  if(!canHarvest(block,tool,tier))return [];
+  const id=blockItem(rule.loot==='dirt'?Block.Dirt:block);
+  const drops=[stack(id,block===Block.WheatCrop||block===Block.BerryCrop?(properties&3)===3?2:1:1)];
+  if((block===Block.WheatCrop||block===Block.BerryCrop)&&(properties&3)===3)
+    drops.push(stack(block===Block.WheatCrop?'sungrain':'berries',2));
+  return drops;
 }
 export class InventoryGrid {
   readonly slots:Stack[];
@@ -173,15 +182,29 @@ export class GameItems {
   constructor(){this.reset();}
   reset(){this.slots.load([]);this.equipment.load([]);this.personal.load([]);this.stations.clear();this.chests.clear();this.furnaces.clear();this.generatedLoot.clear();this.cursor=empty();this.selected=0;this.tool='hand';starter.forEach((id,i)=>this.slots.set(i,stack(id,32)));}
   select(i:number){this.selected=((i%9)+9)%9;}
-  cycleTool(){this.tool=this.tool==='hand'?'pickaxe':this.tool==='pickaxe'?'shovel':'hand';}
+  cycleTool(){const tools:Tool[]=['hand','pickaxe','axe','shovel','hoe'];this.tool=tools[(tools.indexOf(this.tool)+1)%tools.length]!;}
   selectedStack(){return this.slots.get(this.selected);}
   selectedBlock(){const s=this.selectedStack();return isEmpty(s)?Block.Air:itemBlock(s.id);}
-  miningTime(block:Block){const base=miningSeconds(block,this.tool),s=this.equipment.get(0);if(isEmpty(s)||this.tool==='hand')return base;const def=item(s.id);return def.category===this.tool?Math.max(.08,base/Math.max(1,def.speed/2)):base;}
-  wearTool(){if(this.tool!=='hand')this.equipment.damage(0,1);}
+  activeMiningTool():{category:Tool;tier:number;speed:number;source:'hotbar'|'equipment'|null}{
+    const held=this.selectedStack();
+    if(!isEmpty(held)){
+      const def=item(held.id);
+      if(['pickaxe','axe','shovel','hoe'].includes(def.category))return {category:def.category as Tool,tier:def.tier,speed:def.speed,source:'hotbar'};
+    }
+    const s=this.equipment.get(0);
+    if(!isEmpty(s)&&this.tool!=='hand'){
+      const def=item(s.id);
+      if(def.category===this.tool&&def.durability>0)return {category:this.tool,tier:def.tier,speed:def.speed,source:'equipment'};
+    }
+    return {category:'hand',tier:0,speed:1,source:null};
+  }
+  miningTime(block:Block){const tool=this.activeMiningTool();return canHarvest(block,tool.category,tool.tier)?miningSeconds(block,tool.category,tool.speed):miningSeconds(block,'hand');}
+  miningDrops(block:Block,properties=0){const tool=this.activeMiningTool();return miningDrops(block,properties,tool.category,tool.tier);}
+  wearTool(){const source=this.activeMiningTool().source;if(source==='hotbar')this.slots.damage(this.selected,1);else if(source==='equipment')this.equipment.damage(0,1);}
   spendSelected(){const s=this.selectedStack();if(isEmpty(s))return false;this.slots.set(this.selected,stack(s.id,s.count-1,s.damage));return true;}
   station(key:string){if(!this.stations.has(key))this.stations.set(key,new InventoryGrid(9));return this.stations.get(key)!;}
   chest(key:string){if(!this.chests.has(key))this.chests.set(key,new InventoryGrid(27));return this.chests.get(key)!;}
   furnace(key:string){if(!this.furnaces.has(key))this.furnaces.set(key,new Furnace());return this.furnaces.get(key)!;}
   snapshot():ItemsSave{return {slots:this.slots.snapshot(),equipment:this.equipment.snapshot(),selected:this.selected,tool:this.tool,cursor:clone(this.cursor),personal:this.personal.snapshot(),stations:[...this.stations].map(([k,v])=>[k,v.snapshot()]),chests:[...this.chests].map(([k,v])=>[k,v.snapshot()]),furnaces:[...this.furnaces].map(([k,v])=>[k,v.snapshot()]),generatedLoot:[...this.generatedLoot]};}
-  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','shovel'].includes(save.tool)?save.tool:'hand';const cursorGrid=new InventoryGrid(1);cursorGrid.load(save.cursor?[save.cursor]:[]);this.cursor=clone(cursorGrid.get(0));for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);for(const key of save.generatedLoot||[])this.generatedLoot.add(key);}
+  load(save:ItemsSave|undefined){this.reset();if(!save)return;this.slots.load(save.slots);this.equipment.load(save.equipment);this.personal.load(save.personal);this.selected=((save.selected%9)+9)%9;this.tool=['hand','pickaxe','axe','shovel','hoe'].includes(save.tool)?save.tool:'hand';const cursorGrid=new InventoryGrid(1);cursorGrid.load(save.cursor?[save.cursor]:[]);this.cursor=clone(cursorGrid.get(0));for(const [k,v] of save.stations||[])this.station(k).load(v);for(const [k,v] of save.chests||[])this.chest(k).load(v);for(const [k,v] of save.furnaces||[])this.furnace(k).load(v);for(const key of save.generatedLoot||[])this.generatedLoot.add(key);}
 }

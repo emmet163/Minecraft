@@ -2,6 +2,12 @@
 
 Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
 
+## Mining and tools (overhaul Part 1)
+
+Hold left click on a block to mine it. The progress bar and ten stages of block cracks show break progress; releasing the button or changing targets starts over. Creative mode breaks blocks instantly. In Survival, stone and coal need a wood pickaxe or better for their normal drop; copper and iron need stone or better; gold, Gleam Ore, and crystal need iron or better. Dirt, grass, and wood can be collected by hand. Grass drops dirt, and mature crops retain their seed and produce drops. Blocks can still be broken with the wrong tool, but restricted blocks yield no normal item. Existing stone and ore items remain unchanged.
+
+Select a pickaxe, axe, shovel, or hoe in the hotbar to use it directly. You can also equip one in the inventory's tool slot and press **Q** to cycle the equipped tool category. Axes cut wood faster, shovels dig soil faster, and hoes clear foliage faster. Wood, stone, copper, iron, and gold axe and hoe recipes are available at the crafting station alongside existing pickaxes and shovels. Successful Survival mining wears the active tool; inventory tooltips show remaining durability. Dropped items and tool damage are saved with the world. Run `npm run test:mining-overhaul` with the Vite server for the focused Playwright test.
+
 ## Crafting overhaul, Part 2
 
 The inventory and crafting station now use original gray pixel-style panels with square slots, an output arrow, separate recipe output, three inventory rows, and a nine-slot hotbar. Item art comes from the existing block atlas and item registry; tools show their durability in a small bar and in a hover tooltip. No Minecraft interface assets are included.

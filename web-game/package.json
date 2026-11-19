@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "node tests/browser.mjs",
+    "test:mining-overhaul": "node tests/mining-overhaul.mjs",
     "test:integration": "node tests/integration.mjs",
     "test:stations": "node tests/stations.mjs",
     "test:creatures": "node tests/creatures.mjs",
