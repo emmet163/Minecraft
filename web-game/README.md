@@ -16,9 +16,9 @@ Inventory slots use left-click to pick up, place, merge, or swap; right-click to
 
 ## Swimming and water (physics improvement, Part 2)
 
-The player wades in shallow water, floats near a deep-water surface, and swims with WASD. Hold **Space** to rise or **Shift/Ctrl** to dive; looking up or down while moving also nudges vertical travel. Water applies buoyancy and drag while retaining gravity, collision, oxygen loss when the head is submerged, and drowning damage. Leaving water restores normal land movement. Creative flight still takes priority over swimming.
+The player wades in shallow water and swims with WASD. Without upward input, they sink gradually; hold **Space** to rise, or **Shift/Ctrl** to descend faster. Looking up or down while moving also nudges vertical travel. Hold Space while moving toward a reachable one-block shoreline ledge to climb out. Water applies reduced buoyancy and drag while retaining gravity, collision, oxygen loss when the head is submerged, and drowning damage. Leaving water restores normal land movement. Creative flight still takes priority over swimming.
 
-Water uses an original pixel-art atlas tile, a subtly animated translucent material, blue underwater fog, entry splashes, and underwater bubbles. Water edits and the player's saved position and oxygen use the existing IndexedDB save system. Run `npm run test:swimming` with the Vite development server to exercise the browser swimming fixture.
+Water uses an original pixel-art atlas tile, a subtly animated translucent material, blue underwater fog, entry splashes, and underwater bubbles. Water edits and the player's saved position and oxygen use the existing IndexedDB save system. Run `npm run test:swimming` and `npm run test:swimming-fix` with the Vite development server to exercise browser water fixtures.
 
 ## Visual improvement, Part 1
 

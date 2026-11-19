@@ -22,13 +22,13 @@ it('detects shallow and deep water and uses the existing head oxygen path',()=>{
   expect(life.oxygen).toBe(0);expect(life.health).toBeLessThan(20);
   life.tick(2,false,false,false,false,false);expect(life.oxygen).toBeGreaterThan(0);
 });
-it('floats at the surface without sinking, jitter, or an upward launch',()=>{
+it('sinks slowly without input and can swim upward without an upward launch',()=>{
   const p=player(pool(),2,2.5),heights:number[]=[];
   for(let i=0;i<600;i++){p.update(1/60);if(i>=480)heights.push(p.position.y);}
-  expect(p.position.y).toBeGreaterThan(2.7);expect(p.position.y).toBeLessThan(3.7);
+  expect(p.position.y).toBeGreaterThan(.49);expect(p.position.y).toBeLessThan(.8);
   expect(Math.max(...heights)-Math.min(...heights)).toBeLessThan(.3);
   expect(Math.abs(p.velocity.y)).toBeLessThan(1);
-  p.keys.add('Space');advance(p,1);expect(p.velocity.y).toBeLessThanOrEqual(3.2);
+  p.keys.add('Space');advance(p,1);expect(p.position.y).toBeGreaterThan(1.2);expect(p.velocity.y).toBeLessThanOrEqual(3.5);
 });
 it('swims upward, dives with Shift or crouch, and exits smoothly',()=>{
   const p=player(pool(),2,2.5);advance(p,.5);const start=p.position.y;

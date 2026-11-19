@@ -1,5 +1,12 @@
 # Known issues and verification limits
 
+## Swimming physics fix (2026-11-18)
+
+- The player now sinks without upward input, rises with Space, and can use one water-exit impulse at a reachable one-block ledge. This is a local collision probe, not general pathfinding or wall climbing. Complicated shapes such as stairs, fences, or unusual overhangs may still need manual testing; a solid test overhang blocks the exit as expected.
+- The existing oxygen, water visuals, and save behavior are preserved. Water currents and pressure are not simulated. The player can still reach the pool floor and must swim upward to avoid drowning.
+- Automated movement tests covered 30/60/120 FPS fixed-step updates, and headless Edge browser checks covered a generated deep pool and shoreline. Physical keyboard/mouse feel, other browser engines, mobile controls, native GPU frame rate, and extended-session physics stability were not verified.
+- Historical sections below describe earlier behavior, including automatic surface floating before this fix.
+
 ## Crafting overhaul, Part 2
 
 - The recipe book shows recipes from the existing registry and can fill a grid only when the ingredients can be transferred without losing its current contents. A full bag can prevent a different recipe from replacing grid contents; the book marks that recipe unavailable until space is made. Selecting a recipe places one craft's ingredients, then the output must be taken to consume them.

@@ -17,6 +17,7 @@
     "test:visuals": "node tests/visuals.mjs",
     "test:visual-improvement": "node tests/visual-improvement.mjs",
     "test:swimming": "node tests/swimming.mjs",
+    "test:swimming-fix": "node tests/swimming-fix.mjs",
     "test:crafting-overhaul": "node tests/crafting-overhaul.mjs",
     "test:recipe-book": "node tests/recipe-book.mjs",
     "test:final": "node tests/final.mjs",

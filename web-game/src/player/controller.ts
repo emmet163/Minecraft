@@ -20,7 +20,8 @@ export class PlayerController {
   onLand:(distance:number)=>void=()=>{};
   onSplash:(surface:number)=>void=()=>{};
   private airborne=false;private peakY=0;
-  private swimRemainder=0;waterMode:WaterMode='land';submersion=0;headSubmerged=false;
+  private swimRemainder=0;private exitBoostTime=0;private exitAssistUsed=false;
+  waterMode:WaterMode='land';submersion=0;headSubmerged=false;
   yaw=0; pitch=0;
   grounded=false;
   private jumpHeld=false;
@@ -54,6 +55,13 @@ export class PlayerController {
     }
     return {submersion:Math.min(1,submersion),headUnder,surface};
   }
+  private reachableLedge(dx:number,dz:number,contact:WaterContact):boolean{
+    if(!Number.isFinite(contact.surface)||this.position.y+PLAYER_HEIGHT<contact.surface-.15)return false;
+    const x=this.position.x+dx*.45,z=this.position.z+dz*.45,y=this.position.y;
+    // A one-block rise must clear the whole body, including any overhang.
+    return this.collides(x,y,z,PLAYER_HEIGHT)&&!this.collides(x,y+1.05,z,PLAYER_HEIGHT)&&
+      this.collides(x,y+.94,z,PLAYER_HEIGHT);
+  }
   private updateWater(delta:number):void{
     this.camera.position.y=THREE.MathUtils.damp(this.camera.position.y,1.62,12,delta);
     this.swimRemainder=Math.min(this.swimRemainder+delta,.12);
@@ -69,13 +77,18 @@ export class PlayerController {
       this.knockback.multiplyScalar(Math.max(0,1-7*SWIM_STEP));
       const up=this.keys.has('Space'),down=this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')||
         this.keys.has('ControlLeft')||this.keys.has('ControlRight');
-      if(up&&this.grounded&&contact.submersion<.55){this.velocity.y=5.3;this.grounded=false;}
+      if(!up)this.exitAssistUsed=false;
+      const directionLength=Math.hypot(targetX,targetZ);
+      if(up&&!this.exitAssistUsed&&directionLength>.01&&this.reachableLedge(targetX/directionLength,targetZ/directionLength,contact)){
+        this.velocity.y=Math.max(this.velocity.y,7.2);this.exitBoostTime=.22;this.exitAssistUsed=true;this.jumpHeld=true;
+      }else if(up&&!this.jumpHeld&&this.grounded&&contact.submersion<.55){this.velocity.y=5.3;this.grounded=false;this.jumpHeld=true;}
       const lookLift=forward*Math.sin(this.pitch)*4;
-      this.velocity.y+=(-22+27.5*contact.submersion+(up?16:0)-(down?17:0)+lookLift-this.velocity.y*3.2)*SWIM_STEP;
-      this.velocity.y=THREE.MathUtils.clamp(this.velocity.y,-3.6,3.2);
+      this.velocity.y+=(-22+11*contact.submersion+(up?27:0)-(down?12:0)+lookLift-this.velocity.y*5.3)*SWIM_STEP;
+      this.velocity.y=THREE.MathUtils.clamp(this.velocity.y,down?-4.3:-2.8,this.exitBoostTime>0?7.2:3.5);
+      this.exitBoostTime=Math.max(0,this.exitBoostTime-SWIM_STEP);
+      this.grounded=false;this.moveAxis('y',this.velocity.y*SWIM_STEP,PLAYER_HEIGHT);
       this.moveAxis('x',this.velocity.x*SWIM_STEP,PLAYER_HEIGHT);
       this.moveAxis('z',this.velocity.z*SWIM_STEP,PLAYER_HEIGHT);
-      this.grounded=false;this.moveAxis('y',this.velocity.y*SWIM_STEP,PLAYER_HEIGHT);
     }
     const contact=this.sampleWater(),wasWet=this.submersion>.015;
     this.submersion=contact.submersion;this.headSubmerged=contact.headUnder;
@@ -83,7 +96,7 @@ export class PlayerController {
     if(contact.submersion>.001){this.airborne=false;
       const down=this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')||this.keys.has('ControlLeft')||this.keys.has('ControlRight');
       this.waterMode=down?'diving':contact.headUnder?'swimming':this.grounded||contact.submersion<.45?'wading':'floating';
-    }else{this.waterMode='exiting';this.velocity.y=Math.min(this.velocity.y,2.2);this.swimRemainder=0;}
+    }else{this.waterMode='exiting';this.swimRemainder=0;}
     this.jumpHeld=this.keys.has('Space');
   }
   private collides(x:number,y:number,z:number,height:number): boolean {
@@ -126,6 +139,7 @@ export class PlayerController {
     const water=this.sampleWater();
     if(water.submersion>.001){this.updateWater(delta);return;}
     this.waterMode=this.submersion>.001?'exiting':'land';this.submersion=0;this.headSubmerged=false;this.swimRemainder=0;
+    this.exitBoostTime=0;if(!this.keys.has('Space')||this.grounded)this.exitAssistUsed=false;
     if(!this.grounded){if(!this.airborne){this.airborne=true;this.peakY=this.position.y;}else this.peakY=Math.max(this.peakY,this.position.y);}
     const crouching=this.keys.has('ControlLeft')||this.keys.has('ControlRight');
     const height=crouching?1.15:!this.collides(this.position.x,this.position.y,this.position.z,1.8)?1.8:1.15;

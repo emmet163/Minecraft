@@ -1,5 +1,30 @@
 # Stonewake web test report
 
+## Swimming physics bug fix: diving, sinking, and exiting (2026-11-18)
+
+**Baseline:** Checkpoint `8df526d`; only unrelated `preview-site/` was untracked. Inspected player swim gravity, buoyancy, speed clamps, movement order, collision boxes, water sampling, mode transitions, existing swimming tests, and known issues. Before changes, typecheck, 60 Vitest tests in twelve files, and the production build passed.
+
+**Causes:** Full submersion added 27.5 upward acceleration against 22 gravity, so no-input movement rose automatically and settled near the surface. Vertical swim velocity was capped at 3.2 and cut to 2.2 on leaving water; horizontal collision ran before vertical movement and blocked forward motion against shoreline blocks. The shallow-water jump also lacked a one-press guard inside the fixed-step loop.
+
+**Fix:** Full-water buoyancy is now 11 against gravity 22, with vertical drag and a capped slow sink. Space adds upward acceleration; releasing it restores sinking, and Shift/Ctrl add downward acceleration. The fixed 120 Hz swim step now moves vertically before horizontal collision. A nearby one-block ledge probe checks that the current position is blocked, a one-block rise is clear, and a landing surface is present. Space gives one 7.2-speed exit impulse while that ledge is reachable; holding Space cannot retrigger the impulse until released or grounded. The water-to-land transition preserves upward momentum, and existing oxygen, rendering, and persistence systems remain in use.
+
+| Executed check | Result |
+| --- | --- |
+| Baseline `npm run typecheck`, `npm test`, `npm run build` | Passed: 60 tests in twelve files and production build. |
+| First focused swim run after physics change | One old assertion requiring automatic floating failed, as expected; replaced with a sinking-floor assertion and reran. |
+| Final `npm run typecheck` | Passed. |
+| Final `npm test` | Passed: 67 tests in thirteen files. Seven new deterministic shoreline tests cover land entry, falling/sinking, rise/release/dive, horizontal movement, wall and overhang collision, surface crossing, one-block and flat exits, no repeated launch, chunk borders, 30/60/120 FPS consistency, and land sprint/crouch/jump. |
+| Final `npm run build` | Passed: main JS 737.96 kB (199.05 kB gzip), CSS 18.40 kB (4.81 kB gzip). Vite's 500 kB advisory remains. |
+| Playwright `test:swimming-fix` on Vite dev | Passed: generated deep pool and reachable shore, sink/rise/release/dive, grounded exit, saved player position and water/shore edits after IndexedDB reload; no page or console errors. |
+| Playwright `test:swimming` on Vite dev | Passed: ascent/dive, head submersion, oxygen, blue fog, bubbles, water/player persistence; no browser errors. |
+| Playwright `test:integration` on Vite dev | Passed: land movement/jump, mining, crafting, equipment, damage, food, respawn, Creative flight, and reload; no browser errors. |
+| Playwright `test:advanced` on Vite dev | Passed: fluid flow/reaction, automation, farming, vehicle, effects, Veil transition, and reload; no browser errors. |
+| Playwright `test:browser` on built preview | Passed: WebGL, movement, mining, placement, two saved edits after reload, pause; no page or console errors. |
+
+**Measured performance:** The final built-preview headless Edge/SwiftShader gameplay sample measured 106.0 ms mean/402.5 ms maximum requestAnimationFrame interval and 28.4 MB reported JS heap with eleven chunks at its sample point. An earlier preview run measured 98.9 ms mean/127.8 ms maximum and 33.1 MB heap. The separate advanced journey measured 29.7 ms mean/62.1 ms maximum and 37.7 MB heap. These short software-rendered samples are not native GPU rates or an isolated swimming benchmark.
+
+**Unverified:** Manual physical-keyboard feel, other browser engines, mobile/touch, unusual ledge block shapes, long-session physics and memory stability, and native GPU performance. No deployment occurred. The Godot project and unrelated `preview-site/` were untouched.
+
 ## Crafting overhaul, Part 2 (2026-11-16)
 
 **Baseline:** Checkpoint `617e6ee`; only unrelated `preview-site/` was untracked. Reviewed Part 1 inventory input, recipe matching and transactions, icon generation, CSS, prior report, and browser fixture. Before edits, typecheck, 56 Vitest tests in eleven files, production build, and Part 1 Playwright crafting interaction test passed.
