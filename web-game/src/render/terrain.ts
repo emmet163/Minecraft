@@ -45,18 +45,24 @@ function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [nu
   buf.index.push(start,start+1,start+2,start,start+2,start+3);
 }
 function emitPlant(buf:Buffer,b:Block,x:number,y:number,z:number,height:number):void{
-  const tile=b as number,tx=tile%8,ty=Math.floor(tile/8),r=.38;
-  const bottom=-.48,top=bottom+height,edge=.001;
+  const tile=b as number,tx=tile%8,ty=Math.floor(tile/8);
+  const variation=(Math.imul(x+17,73856093)^Math.imul(z+31,19349663)^Math.imul(y+7,83492791))>>>0;
+  const r=b===Block.Flower?.3:.34+(variation%5)*.015;
+  const angle=((variation>>4)%9-4)*.065,cs=Math.cos(angle),sn=Math.sin(angle);
+  const bottom=-.48,top=bottom+height*(b===Block.Plant?.88+(variation%7)*.025:b===Block.Flower?.94+(variation%5)*.015:1);
+  const tint=.93+(variation%9)*.016,edge=.001;
   const planes:[number,number,number,number][]=[[-r,-r,r,r],[r,-r,-r,r]];
-  for(const [ax,az,bx,bz] of planes){
+  for(const [startX,startZ,endX,endZ] of planes){
+    const ax=startX*cs-startZ*sn,az=startX*sn+startZ*cs;
+    const bx=endX*cs-endZ*sn,bz=endX*sn+endZ*cs;
     const vertices=[[ax,bottom,az],[ax,top,az],[bx,top,bz],[bx,bottom,bz]];
-    const normal=new THREE.Vector3(az-bz,0,bx-ax).normalize();
+    const length=Math.hypot(az-bz,bx-ax),nx=(az-bz)/length,nz=(bx-ax)/length;
     for(let i=0;i<4;i++){
       const vertex=vertices[i]!,u=i>=2?1:0,v=i===0||i===3?1:0;
       buf.pos.push(x+vertex[0]!,y+vertex[1]!,z+vertex[2]!);
-      buf.normal.push(normal.x,normal.y,normal.z);
+      buf.normal.push(nx,0,nz);
       buf.uv.push((tx+edge+(1-2*edge)*u)/8,1-(ty+edge+(1-2*edge)*v)/8);
-      buf.color.push(1,1,1);
+      buf.color.push(tint,tint,tint);
     }
     const offset=buf.pos.length/3-4;
     buf.index.push(offset,offset+1,offset+2,offset,offset+2,offset+3);

@@ -10,11 +10,14 @@ const colors=[
   '#a74358','#766f67','#6b3cb1','#73d2d0','#bb84dd','#6a6f78','#b6986b','#69506b','#fff3a4',
 ];
 const rgb=(hex:string)=>[1,3,5].map(i=>Number.parseInt(hex.slice(i,i+2),16)) as [number,number,number];
+const blade=(x:number,y:number,tipX:number,tipY:number,rootX:number,width:number)=>
+  y>=tipY&&y<=31&&Math.abs(x-(tipX+(rootX-tipX)*(y-tipY)/(31-tipY)))<=width;
 const hash=(b:number,x:number,y:number,salt=0)=>{let n=(Math.imul(b+41,0x9e3779b1)^Math.imul(x+salt,0x85ebca6b)^Math.imul(y+salt,0xc2b2ae35))>>>0;
   n=Math.imul(n^(n>>>16),0x7feb352d)>>>0;return (n^(n>>>15))>>>0;};
 export function atlasPixels():Uint8Array{
   const pixels=new Uint8Array(ATLAS_SIZE*ATLAS_SIZE*4);
   const palette=colors.map(rgb),grass=palette[Block.Grass]!,snow=palette[Block.Snow]!,dirt=palette[Block.Dirt]!;
+  const leafLight=rgb('#89bd5f'),leafDark=rgb('#4f873e'),flowerHighlight=rgb('#f58b83'),flowerShade=rgb('#a83f55');
   const ore=(b:number)=>b>=Block.Coal&&b<=Block.Gold||b===Block.GlowOre||b===Block.Crystal;
   for(let i=3;i<pixels.length;i+=4)pixels[i]=255;
   for(let b=0;b<colors.length;b++)for(let y=0;y<TILE;y++)for(let x=0;x<TILE;x++){
@@ -64,19 +67,22 @@ export function atlasPixels():Uint8Array{
       if(cluster%5===0)shade+=.1;}
     let alpha=255;
     if(b===Block.Plant){
-      const stalk=Math.abs(x-16)<=2&&y>=12;
-      const left=y>=9&&y<=28&&Math.abs(x-(7+Math.round((y-9)*.43)))<=2;
-      const right=y>=7&&y<=28&&Math.abs(x-(25-Math.round((y-7)*.42)))<=2;
-      alpha=stalk||left||right?255:0;
-      shade+=left?.08:right?-.07:0;
+      const tall=blade(x,y,15,3,16,1),left=blade(x,y,4,13,15,2)||blade(x,y,9,7,15,1);
+      const right=blade(x,y,27,12,17,2)||blade(x,y,22,6,17,1);
+      const short=blade(x,y,3,22,15,2)||blade(x,y,29,21,17,2);
+      alpha=tall||left||right||short?255:0;
+      base=tall||left?leafLight:right?grass:leafDark;
+      if(y>22)shade-=.04;
     }
     if(b===Block.Flower){
-      const petal=y>=3&&y<=15&&Math.abs(x-16)+Math.abs(y-9)<12;
-      const stem=Math.abs(x-16)<=2&&y>=14;
-      const leaf=y>=20&&y<=24&&Math.abs(x-(y<22?10:22))<=4;
-      alpha=petal||stem||leaf?255:0;
-      if(stem||leaf)base=palette[Block.Plant]!;
-      else if(Math.abs(x-16)<=3&&y>=7&&y<=11)base=palette[Block.Gold]!;
+      const head=y>=4&&y<=15&&x>=8&&x<=23&&Math.abs(x-15.5)+Math.abs(y-9.5)<13;
+      const stem=Math.abs(x-16)<=1&&y>=14;
+      const leftLeaf=blade(x,y,8,20,16,2)&&y<=27;
+      const rightLeaf=blade(x,y,24,22,16,2)&&y<=28;
+      alpha=head||stem||leftLeaf||rightLeaf?255:0;
+      if(stem||leftLeaf||rightLeaf)base=leftLeaf?leafLight:leafDark;
+      else if(x>=14&&x<=18&&y>=8&&y<=11)base=palette[Block.Gold]!;
+      else base=y<7||x<11||x>21?flowerShade:flowerHighlight;
     }
     if(b===Block.WheatCrop){
       const stalk=[8,16,24].some(cx=>Math.abs(x-cx)<=1&&y>=13);
