@@ -1,6 +1,6 @@
 # Stonewake Web
 
-Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The original Godot 4 C# project remains at the repository root. The `godot-phase5-before-web-migration` tag marks its Phase 5 checkpoint. Browser saves are separate from Godot saves.
+Stonewake is a single-player voxel survival game built with Three.js, TypeScript, and Vite. The old Godot 4 C# project is preserved in Git history at the `godot-phase5-before-web-migration` tag. Browser saves are separate from Godot saves.
 
 ## Animal and mob overhaul, Part 2
 

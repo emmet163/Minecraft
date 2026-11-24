@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "preview": "vite preview --host 127.0.0.1",
+    "dev": "vite --host 127.0.0.1 --configLoader runner",
+    "preview": "vite preview --host 127.0.0.1 --configLoader runner",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --configLoader runner",
     "test:browser": "node tests/browser.mjs",
     "test:mining-overhaul": "node tests/mining-overhaul.mjs",
     "test:integration": "node tests/integration.mjs",
@@ -24,7 +24,7 @@
     "test:recipe-book": "node tests/recipe-book.mjs",
     "test:final": "node tests/final.mjs",
     "test:performance": "node tests/performance.mjs",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build --configLoader runner"
   },
   "dependencies": {
     "three": "^0.181.0"
