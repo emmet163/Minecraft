@@ -13,7 +13,10 @@ describe('Phase 9 visuals and controls',()=>{
     const a=atlasPixels(),b=atlasPixels();expect(a).toEqual(b);expect(a.length).toBe(ATLAS_SIZE*ATLAS_SIZE*4);
     const tile=(id:number)=>{const i=((Math.floor(id/8)*32+15)*ATLAS_SIZE+(id%8)*32+15)*4;return [...a.slice(i,i+3)];};
     expect(tile(Block.Grass)).not.toEqual(tile(Block.Stone));expect(tile(Block.Water)).not.toEqual(tile(Block.Lava));
-    expect(a.every((value,index)=>index%4!==3||value===255)).toBe(true);
+    const alpha=(id:number,x:number,y:number)=>a[((Math.floor(id/8)*32+y)*ATLAS_SIZE+(id%8)*32+x)*4+3];
+    expect(alpha(Block.Grass,0,0)).toBe(255);
+    expect(alpha(Block.Plant,0,0)).toBe(0);
+    expect(alpha(Block.Plant,16,24)).toBe(255);
     const texture=terrainTexture();expect(texture.image.width).toBe(256);expect(texture.image.height).toBe(256);texture.dispose();
   });
   it('applies ambient shading and routes water to its own material',()=>{

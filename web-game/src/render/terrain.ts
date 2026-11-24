@@ -44,6 +44,24 @@ function emit(buf: Buffer, b: Block, origin: [number,number,number], offset: [nu
   }
   buf.index.push(start,start+1,start+2,start,start+2,start+3);
 }
+function emitPlant(buf:Buffer,b:Block,x:number,y:number,z:number,height:number):void{
+  const tile=b as number,tx=tile%8,ty=Math.floor(tile/8),r=.38;
+  const bottom=-.48,top=bottom+height,edge=.001;
+  const planes:[number,number,number,number][]=[[-r,-r,r,r],[r,-r,-r,r]];
+  for(const [ax,az,bx,bz] of planes){
+    const vertices=[[ax,bottom,az],[ax,top,az],[bx,top,bz],[bx,bottom,bz]];
+    const normal=new THREE.Vector3(az-bz,0,bx-ax).normalize();
+    for(let i=0;i<4;i++){
+      const vertex=vertices[i]!,u=i>=2?1:0,v=i===0||i===3?1:0;
+      buf.pos.push(x+vertex[0]!,y+vertex[1]!,z+vertex[2]!);
+      buf.normal.push(normal.x,normal.y,normal.z);
+      buf.uv.push((tx+edge+(1-2*edge)*u)/8,1-(ty+edge+(1-2*edge)*v)/8);
+      buf.color.push(1,1,1);
+    }
+    const offset=buf.pos.length/3-4;
+    buf.index.push(offset,offset+1,offset+2,offset,offset+2,offset+3);
+  }
+}
 function exposed(b: Block,n: Block): boolean {
   if(isDecorative(b)) return true;
   if(isFluid(b))return n===Block.Air||isFluid(n)&&n!==b;
@@ -73,7 +91,7 @@ export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transpar
       if(b===Block.Slab) box(buf,b,x,y,z,[0,(state.properties&4) ? .25 : -.25,0],[1,.5,1]);
       else if(b===Block.Bed) box(buf,b,x,y,z,[0,-.25,0],[1,.5,1]);
       else if([Block.Wire,Block.Plate,Block.Rail,Block.Farmland,Block.Repeater].includes(b))box(buf,b,x,y,z,[0,-.43,0],[1,.14,1]);
-      else if(b===Block.WheatCrop||b===Block.BerryCrop)box(buf,b,x,y,z,[0,-.5+(state.properties&3)*.12,0],[.52,.2+(state.properties&3)*.24,.52]);
+      else if(b===Block.WheatCrop||b===Block.BerryCrop)emitPlant(buf,b,x,y,z,.35+(state.properties&3)*.18);
       else if(b===Block.Switch||b===Block.Button)box(buf,b,x,y,z,[0,-.25,0],[.48,.5,.48]);
       else if(b===Block.Lamp||b===Block.Piston||b===Block.RealmPortal)box(buf,b===Block.Lamp&&(state.properties&16)?48 as Block:b,x,y,z,[0,0,0],[1,1,1]);
       else if(b===Block.Stairs) {
@@ -92,7 +110,8 @@ export function buildChunkMesh(data: ChunkData, opaque: THREE.Material, transpar
       continue;
     }
     if(isDecorative(b)) {
-      box(buf,b,x,y,z,[0,0,0],[.35,.6,.35]);
+      if(b===Block.Plant||b===Block.Flower)emitPlant(buf,b,x,y,z,.85);
+      else box(buf,b,x,y,z,[0,0,0],[.35,.6,.35]);
       continue;
     }
     if(b===Block.WaterFlow||b===Block.LavaFlow){const height=.92-Math.min(7,state.properties&7)*.08;

@@ -75,8 +75,8 @@ class Game{
   private readonly deepBlue=new THREE.Color('#173e68');
   readonly outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025,1.025,1.025)),new THREE.LineBasicMaterial({color:'#f5dc87',depthTest:false}));
   readonly cracks=new THREE.LineSegments(createCrackGeometry(),new THREE.LineBasicMaterial({color:'#24211e',depthTest:false,transparent:true,opacity:.8}));
-  readonly sun=new THREE.DirectionalLight('#fff3d7',2.3);readonly moon=new THREE.DirectionalLight('#a8b8ff',0);
-  readonly ambient=new THREE.HemisphereLight('#d8e8ff','#5b624f',2.2);readonly drops:Drop[]=[];
+  readonly sun=new THREE.DirectionalLight('#fff1d4',1.9);readonly moon=new THREE.DirectionalLight('#b6c9ed',0);
+  readonly ambient=new THREE.HemisphereLight('#d7e8fa','#657260',1.45);readonly drops:Drop[]=[];
   readonly dropVisuals=new DropVisuals();
   paused=true;private leftHeld=false;private mining=new MiningProgress();private target:Hit|null=null;private creatureTarget:Creature|null=null;private attackClock=0;
   private editBusy=false;private running=false;private loaded=false;private saveBlocked=false;private saveClock=0;
@@ -103,6 +103,7 @@ class Game{
       this.player.knockback.set(dx/length*4,0,dz/length*4);this.takeDamage(actual);this.hud.renderHotbar(this.life);};
     this.creatures.onExplosion=position=>{this.particles.burst(position,24);this.sounds.creature();this.hud.showNotice('A Fuse Creeper burst nearby');};
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure=1.08;
     this.resize();window.addEventListener('resize',()=>this.resize());
     this.hud.onResume=()=>{this.sounds.unlock();void this.hud.canvas.requestPointerLock().then(()=>this.setPaused(false)).catch(()=>this.setPaused(true));};
     this.hud.onSettings=(seed,distance,sensitivity)=>void this.changeSettings(seed,distance,sensitivity);
@@ -420,7 +421,7 @@ class Game{
   }
   private updateLighting(){const daylight=this.cycle.daylight,storm=this.cycle.intensity*(this.cycle.weather==='storm'?.35:.13);
     const b=THREE.MathUtils.clamp(daylight*(1-storm)+this.cycle.flash*.5,0,1);
-    this.sun.intensity=.02+b*2.3;this.moon.intensity=.06+(1-daylight)*.5;this.ambient.intensity=.4+b*1.8;
+    this.sun.intensity=.03+b*1.9;this.moon.intensity=.06+(1-daylight)*.45;this.ambient.intensity=.45+b*1.0;
     const sunX=Math.cos(this.cycle.time*Math.PI*2)*85,sunY=Math.sin(this.cycle.time*Math.PI*2)*95;
     this.sun.position.set(this.player.position.x+sunX,this.player.position.y+sunY,this.player.position.z+35);
     this.sun.target.position.copy(this.player.position);this.sun.target.updateMatrixWorld();

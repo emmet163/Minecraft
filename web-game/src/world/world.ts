@@ -14,7 +14,7 @@ type WorkerResult = {epoch:number;cx:number;cz:number;blocks:Uint8Array;properti
 export class VoxelWorld {
   readonly group=new THREE.Group();
   private readonly texture=terrainTexture();
-  private readonly opaque=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,side:THREE.DoubleSide});
+  private readonly opaque=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,alphaTest:.5,side:THREE.DoubleSide});
   private readonly transparent=new THREE.MeshLambertMaterial({map:this.texture,vertexColors:true,transparent:true,opacity:.64,depthWrite:false,side:THREE.DoubleSide});
   private readonly waterVisual=new WaterSurface(this.texture);
   private readonly water=this.waterVisual.material;
